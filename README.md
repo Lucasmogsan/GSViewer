@@ -4,6 +4,7 @@ This is a simple Gaussian Splatting Viewer built with PyOpenGL / CUDARasterizer.
 
 ## News!
 - 7/12/2024: Add boundary box rendering constraints.
+  
   ![Add boundary box rendering constraints](assets/Add boundary box rendering constraints.gif)
 - 1/10/2024: The OpenGL renderer has faster sorting backend with `torch.argsort` & `cupy.argsort`. With cuda based sorting, it achieves nearly real-time sorting with OpenGL backend.
 - 12/21/2023: Now we support rendering using the official cuda rasterizer!
