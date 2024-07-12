@@ -137,8 +137,10 @@ class Camera:
 
 
 def load_shaders(vs, fs):
-    vertex_shader = open(vs, 'r').read()        
-    fragment_shader = open(fs, 'r').read()
+    with open(vs, 'r', encoding='utf-8') as v_shader_file:
+        vertex_shader = v_shader_file.read()
+    with open(fs, 'r', encoding='utf-8') as f_shader_file:
+        fragment_shader = f_shader_file.read()
 
     active_shader = shaders.compileProgram(
         shaders.compileShader(vertex_shader, GL_VERTEX_SHADER),
@@ -154,8 +156,12 @@ def compile_shaders(vertex_shader, fragment_shader):
     )
     return active_shader
 
-
-def set_attributes(program, keys, values, vao=None, buffer_ids=None):
+# program：指的是已经编译和链接的着色器程序的ID。这个程序包含了OpenGL应用的顶点着色器和片段着色器。
+# keys：一个字符串列表，每个字符串代表一个顶点属性的名称。这些名称应与顶点着色器中定义的属性相匹配。
+# values：一个包含实际顶点数据的NumPy数组列表。每个数组对应于keys列表中的一个属性。
+# vao：顶点数组对象(Vertex Array Object)的ID。如果为None，函数将创建一个新的VAO。
+# buffer_ids：一个包含顶点缓冲对象(Vertex Buffer Object, VBO)的ID列表。如果为None，函数将为每个属性创建一个新的VBO。
+def set_attributes(program, keys, values, lengths=None, vao=None, buffer_ids=None):
     glUseProgram(program)
     if vao is None:
         vao = glGenVertexArrays(1)
@@ -163,21 +169,25 @@ def set_attributes(program, keys, values, vao=None, buffer_ids=None):
 
     if buffer_ids is None:
         buffer_ids = [None] * len(keys)
+    if lengths is None:
+        lengths = [None] * len(keys)  # 确保lengths列表存在，即使是全None
+
     for i, (key, value, b) in enumerate(zip(keys, values, buffer_ids)):
         if b is None:
             b = glGenBuffers(1)
             buffer_ids[i] = b
         glBindBuffer(GL_ARRAY_BUFFER, b)
         glBufferData(GL_ARRAY_BUFFER, value.nbytes, value.reshape(-1), GL_STATIC_DRAW)
-        length = value.shape[-1]
+        length = lengths[i] if lengths[i] is not None else value.shape[-1]  # 使用lengths列表中的值，如果为None，则使用value.shape[-1]
         pos = glGetAttribLocation(program, key)
         glVertexAttribPointer(pos, length, GL_FLOAT, False, 0, None)
         glEnableVertexAttribArray(pos)
     
-    glBindBuffer(GL_ARRAY_BUFFER,0)
+    glBindBuffer(GL_ARRAY_BUFFER,0) #解绑GL_ARRAY_BUFFER
+    glBindVertexArray(0)
     return vao, buffer_ids
 
-def set_attribute(program, key, value, vao=None, buffer_id=None):
+def set_attribute(program, key, value, lengths=None, vao=None, buffer_id=None):
     glUseProgram(program)
     if vao is None:
         vao = glGenVertexArrays(1)
@@ -187,7 +197,7 @@ def set_attribute(program, key, value, vao=None, buffer_id=None):
         buffer_id = glGenBuffers(1)
     glBindBuffer(GL_ARRAY_BUFFER, buffer_id)
     glBufferData(GL_ARRAY_BUFFER, value.nbytes, value.reshape(-1), GL_STATIC_DRAW)
-    length = value.shape[-1]
+    length = lengths if lengths is not None else value.shape[-1]
     pos = glGetAttribLocation(program, key)
     glVertexAttribPointer(pos, length, GL_FLOAT, False, 0, None)
     glEnableVertexAttribArray(pos)
@@ -256,6 +266,19 @@ def set_gl_bindings(vertices, faces):
     # glEnableVertexAttribArray(1)
     # glVertexAttribPointer(2, 3, GL_FLOAT, False, 36, ctypes.c_void_p(12))
     # glEnableVertexAttribArray(2)
+
+def set_uniform_mat3(shader, content, name):
+    glUseProgram(shader)
+    if isinstance(content, glm.mat3):
+        content = np.array(content).astype(np.float32)
+    else:
+        content = content.T
+    glUniformMatrix3fv(
+        glGetUniformLocation(shader, name),
+        1,
+        GL_FALSE,
+        content.astype(np.float32)
+    )
 
 def set_uniform_mat4(shader, content, name):
     glUseProgram(shader)
@@ -341,4 +364,104 @@ def update_texture2d(img, texid, offset):
         GL_RGB, GL_UNSIGNED_BYTE, img
     )
 
+def calculate_rotation_matrix(angles):
+    # Convert angles from degrees to radians
+    angles = np.radians(angles)
+    # Compute sine and cosine for each angle
+    sx, sy, sz = np.sin(angles)
+    cx, cy, cz = np.cos(angles)
+    # Rotation matrix around the X-axis
+    Rx = np.array([
+        [1, 0, 0],
+        [0, cx, -sx],
+        [0, sx, cx]
+    ])
+    # Rotation matrix around the Y-axis
+    Ry = np.array([
+        [cy, 0, sy],
+        [0, 1, 0],
+        [-sy, 0, cy]
+    ])
+    # Rotation matrix around the Z-axis
+    Rz = np.array([
+        [cz, -sz, 0],
+        [sz, cz, 0],
+        [0, 0, 1]
+    ])
+    # Combined rotation matrix
+    R = np.dot(Rz, np.dot(Ry, Rx))
+    return R
 
+def create_box_line_from_bounds(points_center, cube_min, cube_max):
+    # 计算顶点
+    vertices = np.array([
+        [cube_min[0], cube_max[1], cube_min[2]],  # 0 near_top_left
+        [cube_max[0], cube_max[1], cube_min[2]],  # 1 near_top_right
+        [cube_max[0], cube_min[1], cube_min[2]],  # 2 near_bottom_right
+        [cube_min[0], cube_min[1], cube_min[2]],  # 3 near_bottom_left
+        [cube_min[0], cube_max[1], cube_max[2]],  # 4 far_top_left
+        [cube_max[0], cube_max[1], cube_max[2]],  # 5 far_top_right
+        [cube_max[0], cube_min[1], cube_max[2]],  # 6 far_bottom_right
+        [cube_min[0], cube_min[1], cube_max[2]],  # 7 far_bottom_left
+    ], dtype=np.float32)
+    
+    # 将顶点移动到以 points_center 为中心
+    center_offset = (np.array(cube_min) + np.array(cube_max)) / 2
+    vertices = vertices - center_offset + points_center
+
+    # 计算索引
+    indices = np.array([
+        0, 1, 1, 2, 2, 3, 3, 0,  # Near plane edges
+        4, 5, 5, 6, 6, 7, 7, 4,  # Far plane edges
+        0, 4, 1, 5, 2, 6, 3, 7,  # Sides connecting near and far planes
+    ], dtype=np.uint32).reshape(-1, 2)
+    
+    return vertices, indices
+
+def create_box_mesh_from_bounds(points_center, cube_min, cube_max):
+    # 计算顶点
+    vertices = np.array([
+        [cube_min[0], cube_max[1], cube_min[2]],  # 0 near_top_left
+        [cube_max[0], cube_max[1], cube_min[2]],  # 1 near_top_right
+        [cube_max[0], cube_min[1], cube_min[2]],  # 2 near_bottom_right
+        [cube_min[0], cube_min[1], cube_min[2]],  # 3 near_bottom_left
+        [cube_min[0], cube_max[1], cube_max[2]],  # 4 far_top_left
+        [cube_max[0], cube_max[1], cube_max[2]],  # 5 far_top_right
+        [cube_max[0], cube_min[1], cube_max[2]],  # 6 far_bottom_right
+        [cube_min[0], cube_min[1], cube_max[2]],  # 7 far_bottom_left
+    ], dtype=np.float32)
+    
+    # 将顶点移动到以 points_center 为中心
+    center_offset = (np.array(cube_min) + np.array(cube_max)) / 2
+    vertices = vertices - center_offset + points_center
+
+    # 计算三角形索引
+    indices_triangles = np.array([
+        # 顶部面
+        0, 1, 4,
+        1, 5, 4,
+        # 底部面
+        3, 2, 7,
+        2, 6, 7,
+        # 前面
+        0, 3, 1,
+        1, 3, 2,
+        # 后面
+        4, 5, 7,
+        5, 6, 7,
+        # 左面
+        0, 4, 3,
+        3, 4, 7,
+        # 右面
+        1, 2, 5,
+        2, 6, 5
+    ], dtype=np.uint32)
+
+    # 计算线框索引
+    indices_lines = np.array([
+        0, 1, 1, 2, 2, 3, 3, 0,  # Near plane edges
+        4, 5, 5, 6, 6, 7, 7, 4,  # Far plane edges
+        0, 4, 1, 5, 2, 6, 3, 7,  # Sides connecting near and far planes
+    ], dtype=np.uint32)
+
+    return vertices, indices_triangles, indices_lines
