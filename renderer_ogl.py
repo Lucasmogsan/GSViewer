@@ -232,7 +232,7 @@ class OpenGLRenderer(GaussianRenderBase):
 
     # Set the rotation of the cube
     def set_cube_rotation(self, cube_rotation: list):
-        R = util.calculate_rotation_matrix(cube_rotation)
+        R = util.convert_angles_to_rotation_matrix(cube_rotation)
         util.set_uniform_mat3(self.program, R, "cube_rotation") 
 
     # Set the minimum coordinates of the cube
@@ -244,7 +244,7 @@ class OpenGLRenderer(GaussianRenderBase):
         util.set_uniform_v3(self.program, point_cubeMax, "cubeMax")
 
     def draw_boundary_box(self, points_center: list, point_cubeMin, point_cubeMax, cube_rotation, camera: util.Camera):
-        R = util.calculate_rotation_matrix(cube_rotation)
+        R = util.convert_angles_to_rotation_matrix(cube_rotation)
         view_mat = camera.get_view_matrix()
         proj_mat = camera.get_project_matrix()
 

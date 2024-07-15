@@ -32,6 +32,28 @@ class GaussianData:
     def points_max(self):
         return np.max(self.xyz, axis=0)
 
+    @property
+    def compute_aabb(self):
+        return self.points_min, self.points_max
+
+    @property
+    def compute_obb(self):
+        # 计算中心点
+        center = np.mean(self.xyz, axis=0)
+        # 计算协方差矩阵
+        centered_points = self.xyz - center
+        covariance_matrix = np.cov(centered_points, rowvar=False)
+        # 应用SVD
+        U, S, Vt = np.linalg.svd(covariance_matrix)
+        # 计算OBB的边界
+        projected_points = centered_points @ U  # 投影到主成分轴
+        min_bounds = np.min(projected_points, axis=0)
+        max_bounds = np.max(projected_points, axis=0)
+        # 转换回原始坐标系
+        obb_min = center + min_bounds @ U.T
+        obb_max = center + max_bounds @ U.T
+        return obb_min, obb_max, U
+
 def naive_gaussian():
     gau_xyz = np.array([
         0, 0, 0,

@@ -40,10 +40,15 @@ g_render_mode = 7
 
 # Initialize rendering boundary related variables
 g_show_render_boundary = True
-g_enable_render_boundary = 0
+g_enable_render_boundary_aabb = 0
+g_enable_render_boundary_obb = 0
 g_cube_rotation = [0.0, 0.0, 0.0]
 g_cube_min = [-4.0, -4.0, -4.0]
 g_cube_max = [4.0, 4.0, 4.0]
+tmp_cube_rotation = [0.0, 0.0, 0.0]
+tmp_cube_min = [-4.0, -4.0, -4.0]
+tmp_cube_max = [4.0, 4.0, 4.0]
+
 
 def impl_glfw_init():
     window_name = "NeUVF editor"
@@ -123,7 +128,7 @@ def main():
     global g_camera, g_renderer, g_renderer_list, g_renderer_idx, g_scale_modifier, g_auto_sort, \
         g_show_control_win, g_show_help_win, g_show_camera_win, \
         g_render_mode, g_render_mode_tables, \
-        g_show_render_boundary, g_enable_render_boundary, g_cube_min, g_cube_max
+        g_show_render_boundary, g_enable_render_boundary_aabb, g_enable_render_boundary_obb, g_cube_min, g_cube_max, g_cube_rotation, tmp_cube_min, tmp_cube_max, tmp_cube_rotation
         
     imgui.create_context()
     if args.hidpi:
@@ -253,8 +258,8 @@ def main():
                 
                 if imgui.button(label='save image'):
                     width, height = glfw.get_framebuffer_size(window)
-                    nrChannels = 3;
-                    stride = nrChannels * width;
+                    nrChannels = 3
+                    stride = nrChannels * width
                     stride += (4 - stride % 4) if stride % 4 else 0
                     gl.glPixelStorei(gl.GL_PACK_ALIGNMENT, 4)
                     gl.glReadBuffer(gl.GL_FRONT)
@@ -278,73 +283,102 @@ def main():
         # Add the following code in the main function or appropriate GUI rendering section
         if g_show_render_boundary:
             if imgui.begin("3DGS Render Boundary", True):
-                # Add a checkbox to control the enabling of render boundaries
-                changed, g_enable_render_boundary = imgui.checkbox("Enable Render Boundary", g_enable_render_boundary == 1)
-                if changed:
-                    # Update the global variable based on the checkbox state
-                    g_enable_render_boundary = 1 if g_enable_render_boundary else 0
-                    # Toggle the draw boundary box state in the renderer
+                # Add a checkbox to control the enabling of render boundaries for AABB
+                changed_aabb, new_enable_aabb = imgui.checkbox("Enable Render Boundary AABB", g_enable_render_boundary_aabb == 1)
+                if changed_aabb:
+                    if new_enable_aabb:
+                        g_enable_render_boundary_aabb = 1
+                        g_enable_render_boundary_obb = 0  # Disable OBB if AABB is enabled
+                    else:
+                        g_enable_render_boundary_aabb = 0
+
+                    # Update the renderer for AABB
+                    g_cube_min, g_cube_max = gaussians.compute_aabb
+                    tmp_cube_min = g_cube_min.copy()  # 创建独立副本
+                    tmp_cube_max = g_cube_max.copy()  # 创建独立副本
+
                     g_renderer.toggle_draw_boundary_box()
-                    # Update the OpenGL renderer to enable or disable the cube boundary
-                    g_renderer.set_enable_cube(g_enable_render_boundary)
+                    g_renderer.set_enable_cube(g_enable_render_boundary_aabb)
                     g_renderer.set_cube_rotation(g_cube_rotation)
                     g_renderer.set_point_cubeMin(g_cube_min)
                     g_renderer.set_point_cubeMax(g_cube_max)
-                    # Immediately update the renderer state
+                    update_activated_renderer_state(gaussians)
+
+                # Add a checkbox to control the enabling of render boundaries for OBB
+                changed_obb, new_enable_obb = imgui.checkbox("Enable Render Boundary OBB", g_enable_render_boundary_obb == 1)
+                if changed_obb:
+                    if new_enable_obb:
+                        g_enable_render_boundary_obb = 1
+                        g_enable_render_boundary_aabb = 0  # Disable AABB if OBB is enabled
+                    else:
+                        g_enable_render_boundary_obb = 0
+
+                    # Update the renderer for OBB
+                    g_cube_min, g_cube_max, axis = gaussians.compute_obb
+                    tmp_cube_min = g_cube_min.copy()  # 创建独立副本
+                    tmp_cube_max = g_cube_max.copy()  # 创建独立副本
+                    g_cube_rotation = util.convert_rotation_matrix_to_euler_angles(axis)
+                    tmp_cube_rotation = g_cube_rotation.copy()  # 创建独立副本
+
+                    g_renderer.toggle_draw_boundary_box()
+                    g_renderer.set_enable_cube(g_enable_render_boundary_obb)
+                    g_renderer.set_cube_rotation(g_cube_rotation)
+                    g_renderer.set_point_cubeMin(g_cube_min)
+                    g_renderer.set_point_cubeMax(g_cube_max)
                     update_activated_renderer_state(gaussians)
 
                 # When render boundary is enabled, display sliders to control the cube boundaries
-                if g_enable_render_boundary:
-                    fixed_min = -20.0  # Set a fixed minimum value
-                    fixed_max = 20.0   # Set a fixed maximum value
+                if g_enable_render_boundary_aabb or g_enable_render_boundary_obb:
+                    fixed_min = min(g_cube_min) # Adjust based on current min values
+                    fixed_max = max(g_cube_max) # Adjust based on current max values
 
                     changed_min_x, g_cube_min[0] = imgui.slider_float("Min X", g_cube_min[0], fixed_min, fixed_max, "%.2f")
                     imgui.same_line()
                     if imgui.button("Reset Min X"):
-                        g_cube_min[0] = -4.0
+                        g_cube_min[0] = tmp_cube_min[0]
                         changed_min_x = True
                     changed_min_y, g_cube_min[1] = imgui.slider_float("Min Y", g_cube_min[1], fixed_min, fixed_max, "%.2f")
                     imgui.same_line()
                     if imgui.button("Reset Min Y"):
-                        g_cube_min[1] = -4.0
+                        g_cube_min[1] = tmp_cube_min[1]
                         changed_min_y = True
                     changed_min_z, g_cube_min[2] = imgui.slider_float("Min Z", g_cube_min[2], fixed_min, fixed_max, "%.2f")
                     imgui.same_line()
                     if imgui.button("Reset Min Z"):
-                        g_cube_min[2] = -4.0
+                        g_cube_min[2] = tmp_cube_min[2]
                         changed_min_z = True
 
                     changed_max_x, g_cube_max[0] = imgui.slider_float("Max X", g_cube_max[0], fixed_min, fixed_max, "%.2f")
                     imgui.same_line()
                     if imgui.button("Reset Max X"):
-                        g_cube_max[0] = 4.0
+                        g_cube_max[0] = tmp_cube_max[0]
                         changed_max_x = True
                     changed_max_y, g_cube_max[1] = imgui.slider_float("Max Y", g_cube_max[1], fixed_min, fixed_max, "%.2f")
                     imgui.same_line()
                     if imgui.button("Reset Max Y"):
-                        g_cube_max[1] = 4.0
+                        g_cube_max[1] = tmp_cube_max[1]
                         changed_max_y = True
                     changed_max_z, g_cube_max[2] = imgui.slider_float("Max Z", g_cube_max[2], fixed_min, fixed_max, "%.2f")
                     imgui.same_line()
                     if imgui.button("Reset Max Z"):
-                        g_cube_max[2] = 4.0
+                        g_cube_max[2] = tmp_cube_max[2]
                         changed_max_z = True
 
                     # Add rotation controls
                     changed_rot_x, g_cube_rotation[0] = imgui.slider_float("Rotate X", g_cube_rotation[0], -180.0, 180.0, "%.2f degrees")
                     imgui.same_line()
                     if imgui.button("Reset Rotate X"):
-                        g_cube_rotation[0] = 0.0
+                        g_cube_rotation[0] = tmp_cube_rotation[0]
                         changed_rot_x = True
                     changed_rot_y, g_cube_rotation[1] = imgui.slider_float("Rotate Y", g_cube_rotation[1], -180.0, 180.0, "%.2f degrees")
                     imgui.same_line()
                     if imgui.button("Reset Rotate Y"):
-                        g_cube_rotation[1] = 0.0
+                        g_cube_rotation[1] = tmp_cube_rotation[1]
                         changed_rot_y = True
                     changed_rot_z, g_cube_rotation[2] = imgui.slider_float("Rotate Z", g_cube_rotation[2], -180.0, 180.0, "%.2f degrees")
                     imgui.same_line()
                     if imgui.button("Reset Rotate Z"):
-                        g_cube_rotation[2] = 0.0
+                        g_cube_rotation[2] = tmp_cube_rotation[2]
                         changed_rot_z = True
                     
                     # If any changes occurred, update the OpenGL renderer's cube boundaries

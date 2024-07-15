@@ -1,13 +1,14 @@
 from OpenGL.GL import *
 import OpenGL.GL.shaders as shaders
 import numpy as np
+import scipy as sp
 import glm
 import ctypes
 
 class Camera:
     def __init__(self, h, w):
-        self.znear = 0.01
-        self.zfar = 100
+        self.znear = 0.001
+        self.zfar = 500
         self.h = h
         self.w = w
         self.fovy = np.pi / 2
@@ -364,7 +365,7 @@ def update_texture2d(img, texid, offset):
         GL_RGB, GL_UNSIGNED_BYTE, img
     )
 
-def calculate_rotation_matrix(angles):
+def convert_angles_to_rotation_matrix(angles):
     # Convert angles from degrees to radians
     angles = np.radians(angles)
     # Compute sine and cosine for each angle
@@ -391,6 +392,15 @@ def calculate_rotation_matrix(angles):
     # Combined rotation matrix
     R = np.dot(Rz, np.dot(Ry, Rx))
     return R
+
+def convert_rotation_matrix_to_euler_angles(R):
+    """
+    从旋转矩阵转换到欧拉角（以度为单位）
+    """
+    rotation = sp.spatial.transform.Rotation.from_matrix(R)
+    # 转换到欧拉角，这里使用'xyz'作为旋转顺序
+    euler_angles = rotation.as_euler('xyz', degrees=True)
+    return euler_angles
 
 def create_box_line_from_bounds(points_center, cube_min, cube_max):
     # 计算顶点
