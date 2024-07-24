@@ -40,8 +40,8 @@ g_render_mode = 7
 
 # Initialize rendering boundary related variables
 g_show_render_boundary = True
+use_axis_for_rotation = False 
 g_enable_render_boundary_aabb = 0
-g_enable_render_boundary_obb = 0
 g_cube_rotation = [0.0, 0.0, 0.0]
 g_cube_min = [-4.0, -4.0, -4.0]
 g_cube_max = [4.0, 4.0, 4.0]
@@ -128,7 +128,7 @@ def main():
     global g_camera, g_renderer, g_renderer_list, g_renderer_idx, g_scale_modifier, g_auto_sort, \
         g_show_control_win, g_show_help_win, g_show_camera_win, \
         g_render_mode, g_render_mode_tables, \
-        g_show_render_boundary, g_enable_render_boundary_aabb, g_enable_render_boundary_obb, g_cube_min, g_cube_max, g_cube_rotation, tmp_cube_min, tmp_cube_max, tmp_cube_rotation
+        g_show_render_boundary, g_enable_render_boundary_aabb, use_axis_for_rotation, g_cube_min, g_cube_max, g_cube_rotation, tmp_cube_min, tmp_cube_max, tmp_cube_rotation
         
     imgui.create_context()
     if args.hidpi:
@@ -288,77 +288,83 @@ def main():
                 if changed_aabb:
                     if new_enable_aabb:
                         g_enable_render_boundary_aabb = 1
-                        g_enable_render_boundary_obb = 0  # Disable OBB if AABB is enabled
+                        g_renderer.set_enable_aabb(g_enable_render_boundary_aabb)  # 启用AABB
                     else:
                         g_enable_render_boundary_aabb = 0
+                        g_renderer.set_enable_aabb(g_enable_render_boundary_aabb)  # 禁用AABB
+                        use_axis_for_rotation = False  # 禁用时重置旋转轴使用状态
+                        g_cube_rotation = [0.0, 0.0, 0.0]  # 重置为默认角度
 
                     # Update the renderer for AABB
-                    g_cube_min, g_cube_max = gaussians.compute_aabb
+                    g_cube_min, g_cube_max, _ = gaussians.compute_aabb
                     tmp_cube_min = g_cube_min.copy()  # 创建独立副本
                     tmp_cube_max = g_cube_max.copy()  # 创建独立副本
 
+                    g_renderer.clear_boundary_box()  # 清除之前的边界框资源
                     g_renderer.toggle_draw_boundary_box()
-                    g_renderer.set_enable_cube(g_enable_render_boundary_aabb)
                     g_renderer.set_cube_rotation(g_cube_rotation)
                     g_renderer.set_point_cubeMin(g_cube_min)
                     g_renderer.set_point_cubeMax(g_cube_max)
-                    update_activated_renderer_state(gaussians)
+                    # update_activated_renderer_state(gaussians)
 
-                # Add a checkbox to control the enabling of render boundaries for OBB
-                changed_obb, new_enable_obb = imgui.checkbox("Enable Render Boundary OBB", g_enable_render_boundary_obb == 1)
-                if changed_obb:
-                    if new_enable_obb:
-                        g_enable_render_boundary_obb = 1
-                        g_enable_render_boundary_aabb = 0  # Disable AABB if OBB is enabled
-                    else:
-                        g_enable_render_boundary_obb = 0
-
-                    # Update the renderer for OBB
-                    g_cube_min, g_cube_max, axis = gaussians.compute_obb
-                    tmp_cube_min = g_cube_min.copy()  # 创建独立副本
-                    tmp_cube_max = g_cube_max.copy()  # 创建独立副本
-                    g_cube_rotation = util.convert_rotation_matrix_to_euler_angles(axis)
-                    tmp_cube_rotation = g_cube_rotation.copy()  # 创建独立副本
-
-                    g_renderer.toggle_draw_boundary_box()
-                    g_renderer.set_enable_cube(g_enable_render_boundary_obb)
-                    g_renderer.set_cube_rotation(g_cube_rotation)
-                    g_renderer.set_point_cubeMin(g_cube_min)
-                    g_renderer.set_point_cubeMax(g_cube_max)
-                    update_activated_renderer_state(gaussians)
+                # Only show "Use Axis for Rotation" checkbox if AABB is enabled
+                if g_enable_render_boundary_aabb:
+                    imgui.same_line()
+                    changed_use_axis, use_axis_for_rotation = imgui.checkbox("Use Axis for Rotation", use_axis_for_rotation)
+                    if changed_use_axis:
+                        if use_axis_for_rotation:
+                            g_cube_rotation = util.convert_rotation_matrix_to_euler_angles(gaussians.compute_obb[2])
+                            # 更新边界框的角点为OBB的角点
+                            # g_cube_min, g_cube_max, _, _ = gaussians.compute_obb
+                        else:
+                            # 重置aabb初始情况
+                            g_cube_rotation = [0.0, 0.0, 0.0]
+                            # g_cube_min, g_cube_max, _ = gaussians.compute_aabb
+                        g_renderer.set_cube_rotation(g_cube_rotation)
 
                 # When render boundary is enabled, display sliders to control the cube boundaries
-                if g_enable_render_boundary_aabb or g_enable_render_boundary_obb:
-                    fixed_min = min(g_cube_min) # Adjust based on current min values
-                    fixed_max = max(g_cube_max) # Adjust based on current max values
+                if g_enable_render_boundary_aabb:
+                    fixed_min_xmin = tmp_cube_min[0]
+                    fixed_min_xmax = tmp_cube_max[0]
+                    fixed_min_ymin = tmp_cube_min[1]
+                    fixed_min_ymax = tmp_cube_max[1]
+                    fixed_min_zmin = tmp_cube_min[2]
+                    fixed_min_zmax = tmp_cube_max[2]
 
-                    changed_min_x, g_cube_min[0] = imgui.slider_float("Min X", g_cube_min[0], fixed_min, fixed_max, "%.2f")
+                    fixed_max_xmin = tmp_cube_min[0]
+                    fixed_max_xmax = tmp_cube_max[0]
+                    fixed_max_ymin = tmp_cube_min[1]
+                    fixed_max_ymax = tmp_cube_max[1]
+                    fixed_max_zmin = tmp_cube_min[2]
+                    fixed_max_zmax = tmp_cube_max[2] 
+
+                    changed_min_x, g_cube_min[0] = imgui.slider_float("Min X", g_cube_min[0], fixed_min_xmin, fixed_min_xmax, "%.2f")
                     imgui.same_line()
                     if imgui.button("Reset Min X"):
                         g_cube_min[0] = tmp_cube_min[0]
                         changed_min_x = True
-                    changed_min_y, g_cube_min[1] = imgui.slider_float("Min Y", g_cube_min[1], fixed_min, fixed_max, "%.2f")
+                    changed_min_y, g_cube_min[1] = imgui.slider_float("Min Y", g_cube_min[1], fixed_min_ymin, fixed_min_ymax, "%.2f")
                     imgui.same_line()
                     if imgui.button("Reset Min Y"):
                         g_cube_min[1] = tmp_cube_min[1]
                         changed_min_y = True
-                    changed_min_z, g_cube_min[2] = imgui.slider_float("Min Z", g_cube_min[2], fixed_min, fixed_max, "%.2f")
+                    changed_min_z, g_cube_min[2] = imgui.slider_float("Min Z", g_cube_min[2], fixed_min_zmin, fixed_min_zmax, "%.2f")
                     imgui.same_line()
                     if imgui.button("Reset Min Z"):
                         g_cube_min[2] = tmp_cube_min[2]
                         changed_min_z = True
 
-                    changed_max_x, g_cube_max[0] = imgui.slider_float("Max X", g_cube_max[0], fixed_min, fixed_max, "%.2f")
+                    changed_max_x, g_cube_max[0] = imgui.slider_float("Max X", g_cube_max[0], fixed_max_xmin, fixed_max_xmax, "%.2f")
                     imgui.same_line()
                     if imgui.button("Reset Max X"):
                         g_cube_max[0] = tmp_cube_max[0]
                         changed_max_x = True
-                    changed_max_y, g_cube_max[1] = imgui.slider_float("Max Y", g_cube_max[1], fixed_min, fixed_max, "%.2f")
+                    changed_max_y, g_cube_max[1] = imgui.slider_float("Max Y", g_cube_max[1], fixed_max_ymin, fixed_max_ymax, "%.2f")
                     imgui.same_line()
                     if imgui.button("Reset Max Y"):
                         g_cube_max[1] = tmp_cube_max[1]
                         changed_max_y = True
-                    changed_max_z, g_cube_max[2] = imgui.slider_float("Max Z", g_cube_max[2], fixed_min, fixed_max, "%.2f")
+                    changed_max_z, g_cube_max[2] = imgui.slider_float("Max Z", g_cube_max[2], fixed_max_zmin, fixed_max_zmax, "%.2f")
                     imgui.same_line()
                     if imgui.button("Reset Max Z"):
                         g_cube_max[2] = tmp_cube_max[2]
@@ -387,7 +393,9 @@ def main():
                         g_renderer.set_point_cubeMin(g_cube_min)
                         g_renderer.set_point_cubeMax(g_cube_max)
                     
-                    g_renderer.draw_boundary_box(gaussians.points_center, g_cube_min, g_cube_max, g_cube_rotation, g_camera)
+                    # 绘制边界框
+                    if g_enable_render_boundary_aabb:
+                        g_renderer.draw_boundary_box(gaussians.points_center, g_cube_min, g_cube_max, g_cube_rotation, g_camera)
 
                 imgui.end()
 

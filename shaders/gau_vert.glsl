@@ -54,7 +54,7 @@ uniform int render_mod;  // > 0 render 0-ith SH dim, -1 depth, -2 bill board, -3
 
 // render_boundary
 uniform vec3 points_center; 
-uniform int enable_cube; 
+uniform int enable_aabb; 
 uniform mat3 cube_rotation;
 uniform vec3 cubeMin; 
 uniform vec3 cubeMax; 
@@ -122,14 +122,12 @@ vec4 get_vec4(int offset)
 	return vec4(g_data[offset], g_data[offset + 1], g_data[offset + 2], g_data[offset + 3]);
 }
 
-bool isInsideRotatedCube(int enable_cube, vec3 point, vec3 points_center, vec3 cubeMin, vec3 cubeMax, mat3 rotation) {
+bool isInsideRotatedCube(int enable_aabb, vec3 point, vec3 points_center, vec3 cubeMin, vec3 cubeMax, mat3 rotation) {
     // Check if the cube functionality is enabled
-    if (enable_cube == 0) {
+    if (enable_aabb == 0) {
         return true;
     }
-    // Transform the point into the cube's local coordinate system
     vec3 transformed_point = rotation * (point - points_center) + points_center;
-    // Calculate the minimum and maximum points of the cube
     vec3 cubeMinPoint = points_center + cubeMin;
     vec3 cubeMaxPoint = points_center + cubeMax;
     // Check if the transformed point is within the cube bounds
@@ -144,13 +142,13 @@ void main()
 	vec4 g_pos = vec4(get_vec3(start + POS_IDX), 1.f);
 	
 	// 检查顶点是否在立方体范围内
-    bool insideCube = isInsideRotatedCube(enable_cube, g_pos.xyz, points_center, cubeMin, cubeMax, cube_rotation);
+	bool insideCube = isInsideRotatedCube(enable_aabb, g_pos.xyz, points_center, cubeMin, cubeMax, cube_rotation);
 	if (!insideCube)
-    {
-        // 如果顶点不在立方体范围内，通过设置特殊的gl_Position来丢弃它
-        gl_Position = vec4(-100, -100, -100, 1);
-        return;
-    }
+	{
+	    // 如果顶点不在立方体范围内，通过设置特殊的gl_Position来丢弃它
+	    gl_Position = vec4(-100, -100, -100, 1);
+	    return;
+	}
 
     vec4 g_pos_view = view_matrix * g_pos;
     vec4 g_pos_screen = projection_matrix * g_pos_view;

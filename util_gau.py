@@ -1,6 +1,8 @@
 import numpy as np
 from plyfile import PlyData
 from dataclasses import dataclass
+import scipy as sp
+import open3d as o3d
 
 @dataclass
 class GaussianData:
@@ -33,26 +35,59 @@ class GaussianData:
         return np.max(self.xyz, axis=0)
 
     @property
+    def points_extent(self):
+        return self.points_max - self.points_min
+
+    @property
     def compute_aabb(self):
-        return self.points_min, self.points_max
+        """计算并返回AABB的八个角点"""
+        xmin, ymin, zmin = self.points_min
+        xmax, ymax, zmax = self.points_max
+        return self.points_min, self.points_max, np.array([
+            [xmin, ymin, zmin],
+            [xmax, ymin, zmin],
+            [xmin, ymax, zmin],
+            [xmax, ymax, zmin],
+            [xmin, ymin, zmax],
+            [xmax, ymin, zmax],
+            [xmin, ymax, zmax],
+            [xmax, ymax, zmax]
+        ]),
 
     @property
     def compute_obb(self):
-        # 计算中心点
+        """计算并返回OBB的八个角点"""
         center = np.mean(self.xyz, axis=0)
-        # 计算协方差矩阵
         centered_points = self.xyz - center
         covariance_matrix = np.cov(centered_points, rowvar=False)
-        # 应用SVD
         U, S, Vt = np.linalg.svd(covariance_matrix)
-        # 计算OBB的边界
-        projected_points = centered_points @ U  # 投影到主成分轴
+        projected_points = centered_points @ U
         min_bounds = np.min(projected_points, axis=0)
         max_bounds = np.max(projected_points, axis=0)
-        # 转换回原始坐标系
         obb_min = center + min_bounds @ U.T
         obb_max = center + max_bounds @ U.T
-        return obb_min, obb_max, U
+
+        # 计算OBB的八个角点
+        obb_corners = np.array([
+            [obb_min[0], obb_min[1], obb_min[2]],
+            [obb_max[0], obb_min[1], obb_min[2]],
+            [obb_min[0], obb_max[1], obb_min[2]],
+            [obb_max[0], obb_max[1], obb_min[2]],
+            [obb_min[0], obb_min[1], obb_max[2]],
+            [obb_max[0], obb_min[1], obb_max[2]],
+            [obb_min[0], obb_max[1], obb_max[2]],
+            [obb_max[0], obb_max[1], obb_max[2]]
+        ])
+        return obb_min, obb_max, U, obb_corners
+
+    def _apply_transformations(self):
+        transformed_xyz = np.zeros_like(self.xyz)
+        for i in range(len(self.xyz)):
+            # 将四元数转换为旋转矩阵
+            rotation_matrix = sp.spatial.transform.Rotation.from_quat(self.rot[i]).as_matrix()
+            # 应用旋转和缩放
+            transformed_xyz[i] = rotation_matrix @ (self.xyz[i] * self.scale[i])
+        return transformed_xyz
 
 def naive_gaussian():
     gau_xyz = np.array([

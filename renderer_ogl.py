@@ -164,7 +164,8 @@ class OpenGLRenderer(GaussianRenderBase):
         # 创建并绑定顶点数组对象
         self.vao_box = gl.glGenVertexArrays(1)
         self.vbo_box = None
-        self.ebo_box = None
+        self.ebo_box_triangles = None
+        self.ebo_box_lines = None
         self.box_vertices_count_triangles = 0
         self.box_vertices_count_lines = 0
 
@@ -178,7 +179,8 @@ class OpenGLRenderer(GaussianRenderBase):
     def __del__(self):
         # 清理资源
         gl.glDeleteBuffers(1, [self.vbo_box])
-        gl.glDeleteBuffers(1, [self.ebo_box])
+        gl.glDeleteBuffers(1, [self.ebo_box_triangles])
+        gl.glDeleteBuffers(1, [self.ebo_box_lines])
         gl.glDeleteVertexArrays(1, [self.vao_box])
 
     def update_vsync(self):
@@ -227,8 +229,8 @@ class OpenGLRenderer(GaussianRenderBase):
         util.set_uniform_v3(self.program, points_center, "points_center")
 
     # Set whether to use a cube to limit the rendering area
-    def set_enable_cube(self, enable_cube: int):
-        util.set_uniform_1int(self.program, enable_cube, "enable_cube")
+    def set_enable_aabb(self, enable_aabb: int):
+        util.set_uniform_1int(self.program, enable_aabb, "enable_aabb")
 
     # Set the rotation of the cube
     def set_cube_rotation(self, cube_rotation: list):
@@ -264,6 +266,14 @@ class OpenGLRenderer(GaussianRenderBase):
         self.box_vertices_count_triangles = len(indices_triangles)
         self.box_vertices_count_lines = len(indices_lines)
 
+        # 检查并释放旧的 VBO 和 EBO
+        if self.vbo_box:
+            gl.glDeleteBuffers(1, [self.vbo_box])
+        if self.ebo_box_triangles:
+            gl.glDeleteBuffers(1, [self.ebo_box_triangles])
+        if self.ebo_box_lines:
+            gl.glDeleteBuffers(1, [self.ebo_box_lines])
+
         # # 使用 set_attribute 函数设置顶点属性
         # vao, buffer_id = util.set_attribute(
         #             self.program_boundary_box, 
@@ -280,6 +290,22 @@ class OpenGLRenderer(GaussianRenderBase):
         # 设置线框索引缓冲区
         self.ebo_box_lines = util.set_faces_tovao(self.vao_box, indices_lines.flatten())
 
+    def clear_boundary_box(self):
+        # 清除包围盒的绘制资源
+        if self.vbo_box:
+            gl.glDeleteBuffers(1, [self.vbo_box])
+            self.vbo_box = None
+        if self.ebo_box_triangles:
+            gl.glDeleteBuffers(1, [self.ebo_box_triangles])
+            self.ebo_box_triangles = None
+        if self.ebo_box_lines:
+            gl.glDeleteBuffers(1, [self.ebo_box_lines])
+            self.ebo_box_lines = None
+        if self.vao_box:
+            gl.glDeleteVertexArrays(1, [self.vao_box])
+            self.vao_box = gl.glGenVertexArrays(1)  # 重新生成 VAO
+        self.box_vertices_count_triangles = 0
+        self.box_vertices_count_lines = 0
 
     def toggle_draw_boundary_box(self):
         # 切换包围盒显示状态
