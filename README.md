@@ -3,6 +3,9 @@
 This is a simple Gaussian Splatting Viewer built with PyOpenGL / CUDARasterizer. It's easy to install with minimum dependencies. The goal of this project is to provide a minimum example of the viewer for research and study purpose. 
 
 ## News!
+- 7/242024: Fix the memory leak problem and adjust the rendering bounding box to aabb mode and obb mode.
+  ![Modify_aabb_and_obb_boundary_box](./assets/Modify_aabb_and_obb_boundary_box.gif)
+  
 - 7/12/2024: Add boundary box rendering constraints.
 
   ![Add boundary box rendering constraints](assets/Add_boundary_box_rendering_constraints.gif)
