@@ -55,6 +55,7 @@ uniform int render_mod;  // > 0 render 0-ith SH dim, -1 depth, -2 bill board, -3
 // render_boundary
 uniform vec3 points_center; 
 uniform int enable_aabb; 
+uniform int enable_obb; 
 uniform mat3 cube_rotation;
 uniform vec3 cubeMin; 
 uniform vec3 cubeMax; 
@@ -123,15 +124,24 @@ vec4 get_vec4(int offset)
 }
 
 bool isInsideRotatedCube(int enable_aabb, vec3 point, vec3 points_center, vec3 cubeMin, vec3 cubeMax, mat3 rotation) {
-    // Check if the cube functionality is enabled
-    if (enable_aabb == 0) {
+    // 如果没有启用任何包围盒功能，直接返回true
+    if (enable_aabb == 0 && enable_obb == 0) {
         return true;
     }
-    vec3 transformed_point = rotation * (point - points_center) + points_center;
-    vec3 cubeMinPoint = points_center + cubeMin;
-    vec3 cubeMaxPoint = points_center + cubeMax;
-    // Check if the transformed point is within the cube bounds
-    return all(greaterThanEqual(transformed_point, cubeMinPoint)) && all(lessThanEqual(transformed_point, cubeMaxPoint));
+
+    // 如果启用了OBB
+    if (enable_obb == 1) {
+        vec3 transformed_point = inverse(rotation) * (point - points_center);
+        return all(greaterThanEqual(transformed_point, cubeMin)) && all(lessThanEqual(transformed_point, cubeMax));
+    }
+
+    // 如果启用了AABB
+    if (enable_aabb == 1) {
+        vec3 transformed_point = point - points_center;
+        vec3 cubeMinPoint = points_center + cubeMin;
+        vec3 cubeMaxPoint = points_center + cubeMax;
+        return all(greaterThanEqual(transformed_point, cubeMinPoint)) && all(lessThanEqual(transformed_point, cubeMaxPoint));
+    }
 }
 
 void main()

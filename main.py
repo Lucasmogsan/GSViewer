@@ -288,10 +288,14 @@ def main():
                 if changed_aabb:
                     if new_enable_aabb:
                         g_enable_render_boundary_aabb = 1
+                        g_enable_render_boundary_obb = 0
                         g_renderer.set_enable_aabb(g_enable_render_boundary_aabb)  # 启用AABB
+                        g_renderer.set_enable_obb(g_enable_render_boundary_obb)  # 禁用OBB
                     else:
                         g_enable_render_boundary_aabb = 0
+                        g_enable_render_boundary_obb = 0
                         g_renderer.set_enable_aabb(g_enable_render_boundary_aabb)  # 禁用AABB
+                        g_renderer.set_enable_obb(g_enable_render_boundary_obb)  # 禁用OBB
                         use_axis_for_rotation = False  # 禁用时重置旋转轴使用状态
                         g_cube_rotation = [0.0, 0.0, 0.0]  # 重置为默认角度
 
@@ -310,15 +314,22 @@ def main():
                 # Only show "Use Axis for Rotation" checkbox if AABB is enabled
                 if g_enable_render_boundary_aabb:
                     imgui.same_line()
-                    changed_use_axis, use_axis_for_rotation = imgui.checkbox("Use Axis for Rotation", use_axis_for_rotation)
+                    changed_use_axis, use_axis_for_rotation = imgui.checkbox("Toggle OBB Rotation", use_axis_for_rotation)
                     if changed_use_axis:
                         if use_axis_for_rotation:
+                            g_enable_render_boundary_obb = 1
+                            g_renderer.set_enable_obb(g_enable_render_boundary_obb) 
                             g_cube_rotation = util.convert_rotation_matrix_to_euler_angles(gaussians.compute_obb[2])
+                            tmp_cube_rotation = g_cube_rotation.copy()
                             # 更新边界框的角点为OBB的角点
-                            # g_cube_min, g_cube_max, _, _ = gaussians.compute_obb
+                            # g_cube_min = g_cube_min*g_cube_rotation
+                            # g_cube_max = g_cube_max*g_cube_rotation
                         else:
                             # 重置aabb初始情况
+                            g_enable_render_boundary_obb = 0
+                            g_renderer.set_enable_obb(g_enable_render_boundary_obb) 
                             g_cube_rotation = [0.0, 0.0, 0.0]
+                            tmp_cube_rotation = [0.0, 0.0, 0.0]
                             # g_cube_min, g_cube_max, _ = gaussians.compute_aabb
                         g_renderer.set_cube_rotation(g_cube_rotation)
 

@@ -228,9 +228,13 @@ class OpenGLRenderer(GaussianRenderBase):
     def set_points_center(self, points_center: list):
         util.set_uniform_v3(self.program, points_center, "points_center")
 
-    # Set whether to use a cube to limit the rendering area
+    # Set whether to use a cube to limit the rendering area aabb
     def set_enable_aabb(self, enable_aabb: int):
         util.set_uniform_1int(self.program, enable_aabb, "enable_aabb")
+
+    # Set whether to use a cube to limit the rendering area obb
+    def set_enable_obb(self, enable_obb: int):
+        util.set_uniform_1int(self.program, enable_obb, "enable_obb")
 
     # Set the rotation of the cube
     def set_cube_rotation(self, cube_rotation: list):
@@ -328,6 +332,8 @@ class OpenGLRenderer(GaussianRenderBase):
                 # 使用填充模式绘制面
                 gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, self.ebo_box_triangles)
                 gl.glDrawElements(gl.GL_TRIANGLES, self.box_vertices_count_triangles, gl.GL_UNSIGNED_INT, None)
+                # 设置线宽
+                gl.glLineWidth(3.5)  # 设置线宽
                 # 使用线框模式绘制线框
                 gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, self.ebo_box_lines)
                 gl.glDrawElements(gl.GL_LINES, self.box_vertices_count_lines, gl.GL_UNSIGNED_INT, None)

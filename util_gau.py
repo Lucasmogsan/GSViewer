@@ -43,7 +43,8 @@ class GaussianData:
         """计算并返回AABB的八个角点"""
         xmin, ymin, zmin = self.points_min
         xmax, ymax, zmax = self.points_max
-        return self.points_min, self.points_max, np.array([
+        # 计算AABB的八个角点
+        aabb_corners =  np.array([
             [xmin, ymin, zmin],
             [xmax, ymin, zmin],
             [xmin, ymax, zmin],
@@ -52,7 +53,8 @@ class GaussianData:
             [xmax, ymin, zmax],
             [xmin, ymax, zmax],
             [xmax, ymax, zmax]
-        ]),
+        ])
+        return self.points_min, self.points_max, aabb_corners
 
     @property
     def compute_obb(self):
