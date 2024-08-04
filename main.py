@@ -215,7 +215,7 @@ def main():
                         )
                     if file_path:
                         try:
-                            gaussians = util_gau.load_ply(file_path)
+                            gaussians = util_gau.load_ply(file_path, 5.0)
                             g_renderer.update_gaussian_data(gaussians)
                             g_renderer.set_points_center(gaussians.points_center)
                             g_renderer.sort_and_update(g_camera)

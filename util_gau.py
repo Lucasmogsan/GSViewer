@@ -128,54 +128,109 @@ def naive_gaussian():
         gau_c
     )
 
+# def load_ply(path):
+#     max_sh_degree = 3
+#     plydata = PlyData.read(path)
+#     xyz = np.stack((np.asarray(plydata.elements[0]["x"]),
+#                     np.asarray(plydata.elements[0]["y"]),
+#                     np.asarray(plydata.elements[0]["z"])),  axis=1)
+#     opacities = np.asarray(plydata.elements[0]["opacity"])[..., np.newaxis]
 
-def load_ply(path):
+#     features_dc = np.zeros((xyz.shape[0], 3, 1))
+#     features_dc[:, 0, 0] = np.asarray(plydata.elements[0]["f_dc_0"])
+#     features_dc[:, 1, 0] = np.asarray(plydata.elements[0]["f_dc_1"])
+#     features_dc[:, 2, 0] = np.asarray(plydata.elements[0]["f_dc_2"])
+
+#     extra_f_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("f_rest_")]
+#     extra_f_names = sorted(extra_f_names, key = lambda x: int(x.split('_')[-1]))
+#     assert len(extra_f_names)==3 * (max_sh_degree + 1) ** 2 - 3
+#     features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
+#     for idx, attr_name in enumerate(extra_f_names):
+#         features_extra[:, idx] = np.asarray(plydata.elements[0][attr_name])
+#     # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
+#     features_extra = features_extra.reshape((features_extra.shape[0], 3, (max_sh_degree + 1) ** 2 - 1))
+#     features_extra = np.transpose(features_extra, [0, 2, 1])
+
+#     scale_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("scale_")]
+#     scale_names = sorted(scale_names, key = lambda x: int(x.split('_')[-1]))
+#     scales = np.zeros((xyz.shape[0], len(scale_names)))
+#     for idx, attr_name in enumerate(scale_names):
+#         scales[:, idx] = np.asarray(plydata.elements[0][attr_name])
+
+#     rot_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("rot")]
+#     rot_names = sorted(rot_names, key = lambda x: int(x.split('_')[-1]))
+#     rots = np.zeros((xyz.shape[0], len(rot_names)))
+#     for idx, attr_name in enumerate(rot_names):
+#         rots[:, idx] = np.asarray(plydata.elements[0][attr_name])
+
+#     # pass activate function
+#     xyz = xyz.astype(np.float32)
+#     rots = rots / np.linalg.norm(rots, axis=-1, keepdims=True)
+#     rots = rots.astype(np.float32)
+#     scales = np.exp(scales)
+#     scales = scales.astype(np.float32)
+#     opacities = 1/(1 + np.exp(- opacities))  # sigmoid
+#     opacities = opacities.astype(np.float32)
+#     shs = np.concatenate([features_dc.reshape(-1, 3), 
+#                         features_extra.reshape(len(features_dc), -1)], axis=-1).astype(np.float32)
+#     shs = shs.astype(np.float32)
+#     return GaussianData(xyz, rots, scales, opacities, shs)
+
+def load_ply(path, scale_to_interval):
     max_sh_degree = 3
     plydata = PlyData.read(path)
     xyz = np.stack((np.asarray(plydata.elements[0]["x"]),
                     np.asarray(plydata.elements[0]["y"]),
                     np.asarray(plydata.elements[0]["z"])),  axis=1)
-    opacities = np.asarray(plydata.elements[0]["opacity"])[..., np.newaxis]
+    # 计算模型的边界
+    min_xyz = np.min(xyz, axis=0)
+    max_xyz = np.max(xyz, axis=0)
+    center_xyz = (min_xyz + max_xyz) / 2
+    max_extent = np.max(max_xyz - min_xyz)
+    # 计算缩放因子
+    scale_factor = scale_to_interval / max_extent
+    # 应用缩放和中心化
+    xyz = (xyz - center_xyz) * scale_factor
 
+    # 处理法线
+    normals = np.stack((np.asarray(plydata.elements[0]["nx"]),
+                        np.asarray(plydata.elements[0]["ny"]),
+                        np.asarray(plydata.elements[0]["nz"])), axis=1)
+    normals = normals / np.linalg.norm(normals, axis=1, keepdims=True)
+
+    # 处理其他属性
+    opacities = np.asarray(plydata.elements[0]["opacity"])[..., np.newaxis]
     features_dc = np.zeros((xyz.shape[0], 3, 1))
     features_dc[:, 0, 0] = np.asarray(plydata.elements[0]["f_dc_0"])
     features_dc[:, 1, 0] = np.asarray(plydata.elements[0]["f_dc_1"])
     features_dc[:, 2, 0] = np.asarray(plydata.elements[0]["f_dc_2"])
 
     extra_f_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("f_rest_")]
-    extra_f_names = sorted(extra_f_names, key = lambda x: int(x.split('_')[-1]))
-    assert len(extra_f_names)==3 * (max_sh_degree + 1) ** 2 - 3
+    extra_f_names = sorted(extra_f_names, key=lambda x: int(x.split('_')[-1]))
     features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
     for idx, attr_name in enumerate(extra_f_names):
         features_extra[:, idx] = np.asarray(plydata.elements[0][attr_name])
-    # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
     features_extra = features_extra.reshape((features_extra.shape[0], 3, (max_sh_degree + 1) ** 2 - 1))
     features_extra = np.transpose(features_extra, [0, 2, 1])
 
     scale_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("scale_")]
-    scale_names = sorted(scale_names, key = lambda x: int(x.split('_')[-1]))
+    scale_names = sorted(scale_names, key=lambda x: int(x.split('_')[-1]))
     scales = np.zeros((xyz.shape[0], len(scale_names)))
     for idx, attr_name in enumerate(scale_names):
         scales[:, idx] = np.asarray(plydata.elements[0][attr_name])
+    scales = np.exp(scales) * scale_factor  # 调整局部缩放
 
     rot_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("rot")]
-    rot_names = sorted(rot_names, key = lambda x: int(x.split('_')[-1]))
+    rot_names = sorted(rot_names, key=lambda x: int(x.split('_')[-1]))
     rots = np.zeros((xyz.shape[0], len(rot_names)))
     for idx, attr_name in enumerate(rot_names):
         rots[:, idx] = np.asarray(plydata.elements[0][attr_name])
-
-    # pass activate function
-    xyz = xyz.astype(np.float32)
     rots = rots / np.linalg.norm(rots, axis=-1, keepdims=True)
-    rots = rots.astype(np.float32)
-    scales = np.exp(scales)
-    scales = scales.astype(np.float32)
-    opacities = 1/(1 + np.exp(- opacities))  # sigmoid
-    opacities = opacities.astype(np.float32)
-    shs = np.concatenate([features_dc.reshape(-1, 3), 
-                        features_extra.reshape(len(features_dc), -1)], axis=-1).astype(np.float32)
-    shs = shs.astype(np.float32)
-    return GaussianData(xyz, rots, scales, opacities, shs)
+
+    opacities = 1 / (1 + np.exp(-opacities))  # sigmoid
+    shs = np.concatenate([features_dc.reshape(-1, 3), features_extra.reshape(len(features_dc), -1)], axis=-1).astype(np.float32)
+
+    return GaussianData(xyz.astype(np.float32), rots.astype(np.float32), scales.astype(np.float32), opacities.astype(np.float32), shs.astype(np.float32))
 
 if __name__ == "__main__":
     gs = load_ply("C:\\Users\\MSI_NB\\Downloads\\viewers\\models\\train\\point_cloud\\iteration_7000\\point_cloud.ply")
