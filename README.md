@@ -1,16 +1,20 @@
-# Tiny Gaussian Splatting Viewer
+# Gaussian Splatting Viewer
 ![UI demo](assets/teaser.png)
 This is a simple Gaussian Splatting Viewer built with PyOpenGL / CUDARasterizer. It's easy to install with minimum dependencies. The goal of this project is to provide a minimum example of the viewer for research and study purpose. 
 
-## News!
-- 7/242024: Fix the memory leak problem and adjust the rendering bounding box to aabb mode and obb mode.
+## News
+
+- 2024/08/04: Enable the OBB axis and adjust the shader to constrain the rendering of Gaussian elements to determine whether they are within the bounding box content.
   ![Modify_aabb_and_obb_boundary_box](./assets/Modify_aabb_and_obb_boundary_box.gif)
+
+- 7/24/2024: Fix the memory leak problem and adjust the rendering bounding box to aabb mode and obb mode.
   
 - 7/12/2024: Add boundary box rendering constraints.
 
   ![Add boundary box rendering constraints](assets/Add_boundary_box_rendering_constraints.gif)
 
 - 1/10/2024: The OpenGL renderer has faster sorting backend with `torch.argsort` & `cupy.argsort`. With cuda based sorting, it achieves nearly real-time sorting with OpenGL backend.
+
 - 12/21/2023: Now we support rendering using the official cuda rasterizer!
 
 ## Usage
