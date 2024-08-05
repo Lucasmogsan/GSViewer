@@ -50,7 +50,12 @@ uniform vec3 hfovxy_focal;
 uniform vec3 cam_pos;
 uniform int sh_dim;
 uniform float scale_modifier;
+uniform float dc_factor; // 更新DC特征的调整系数并应用所有调整
+uniform float extra_factor; // 更新除DC特征外的调整系数并应用所有调整
+uniform vec3 color_scale_factors; //调整颜色因子
 uniform int render_mod;  // > 0 render 0-ith SH dim, -1 depth, -2 bill board, -3 gaussian
+uniform vec4 rot_modifier; // 旋转因子四元数
+uniform vec3 light_rotation; // 光照旋转角度，分别对应X、Y、Z轴
 
 // render_boundary
 uniform vec3 points_center; 
@@ -64,6 +69,7 @@ out vec3 color;
 out float alpha;
 out vec3 conic;
 out vec2 coordxy;  // local coordinate in quad, unit in pixel
+out vec3 approxNormal; // 向片段着色器传递的近似法向量
 
 mat3 computeCov3D(vec3 scale, vec4 q)  // should be correct
 {
@@ -123,6 +129,45 @@ vec4 get_vec4(int offset)
 	return vec4(g_data[offset], g_data[offset + 1], g_data[offset + 2], g_data[offset + 3]);
 }
 
+// 简单的四元数乘法函数实现
+vec4 quatMultiply(vec4 q1, vec4 q2) {
+    return vec4(
+        q1.w*q2.x + q1.x*q2.w + q1.y*q2.z - q1.z*q2.y,
+        q1.w*q2.y - q1.x*q2.z + q1.y*q2.w + q1.z*q2.x,
+        q1.w*q2.z + q1.x*q2.y - q1.y*q2.x + q1.z*q2.w,
+        q1.w*q2.w - q1.x*q2.x - q1.y*q2.y - q1.z*q2.z
+    );
+}
+
+
+// dir是一个默认初始方向
+// rotation是一个三维向量，分别代表绕X、Y、Z轴的旋转角度（以度为单位）
+vec3 rotateLightDirection(vec3 dir, vec3 rotation) {
+    // 将角度从度转换为弧度
+    vec3 radAngles = radians(rotation);
+
+    // 绕X轴旋转
+    vec3 rotatedDir;
+    rotatedDir.x = dir.x;
+    rotatedDir.y = dir.y * cos(radAngles.x) - dir.z * sin(radAngles.x);
+    rotatedDir.z = dir.y * sin(radAngles.x) + dir.z * cos(radAngles.x);
+    dir = rotatedDir;
+
+    // 绕Y轴旋转
+    rotatedDir.x = dir.x * cos(radAngles.y) + dir.z * sin(radAngles.y);
+    rotatedDir.y = dir.y;
+    rotatedDir.z = -dir.x * sin(radAngles.y) + dir.z * cos(radAngles.y);
+    dir = rotatedDir;
+
+    // 绕Z轴旋转
+    rotatedDir.x = dir.x * cos(radAngles.z) - dir.y * sin(radAngles.z);
+    rotatedDir.y = dir.x * sin(radAngles.z) + dir.y * cos(radAngles.z);
+    rotatedDir.z = dir.z;
+    dir = rotatedDir;
+
+    return dir;
+}
+
 bool isInsideRotatedCube(int enable_aabb, vec3 point, vec3 points_center, vec3 cubeMin, vec3 cubeMax, mat3 rotation) {
     // 如果没有启用任何包围盒功能，直接返回true
     if (enable_aabb == 0 && enable_obb == 0) {
@@ -174,7 +219,7 @@ void main()
 	vec3 g_scale = get_vec3(start + SCALE_IDX);
 	float g_opacity = g_data[start + OPACITY_IDX];
 
-    mat3 cov3d = computeCov3D(g_scale * scale_modifier, g_rot);
+    mat3 cov3d = computeCov3D(g_scale * scale_modifier, quatMultiply(g_rot, rot_modifier));
     vec2 wh = 2 * hfovxy_focal.xy * hfovxy_focal.z;
     vec3 cov2d = computeCov2D(g_pos_view, 
                               hfovxy_focal.z, 
@@ -198,9 +243,11 @@ void main()
     coordxy = position * quadwh_scr;
     gl_Position = g_pos_screen;
     
+	// 透明度
     alpha = g_opacity;
 
-	if (render_mod == -1)
+	//Depth
+	if (render_mod == -3)
 	{
 		float depth = -g_pos_view.z;
 		depth = depth < 0.05 ? 1 : depth;
@@ -209,10 +256,32 @@ void main()
 		return;
 	}
 
+	// 计算指向相机的近似法向量
+    approxNormal = normalize(cam_pos - g_pos.xyz);
+
+	//Normal
+    if (render_mod == -2) {
+        // 计算指向相机的近似法向量
+        vec3 viewDirection = normalize(cam_pos - g_pos.xyz);
+        // 使用法向量计算颜色，这里简单地将法向量的方向映射到颜色上
+        vec3 normalColor = 0.5 * (viewDirection + 1.0); // 将法向量的范围从[-1, 1]映射到[0, 1]
+        color = normalColor;
+        return;
+    }
+
 	// Covert SH to color
 	int sh_start = start + SH_IDX;
 	vec3 dir = g_pos.xyz - cam_pos;
     dir = normalize(dir);
+
+	// vec3 dir = vec3(1.0, 0.0, 0.0); // 示例方向
+	// 使用rotateLightDirection函数来旋转lightDir
+	dir = rotateLightDirection(dir, light_rotation);
+
+	// 计算颜色
+	// 用球谐系数计算颜色
+	// SH_C0 是一个常量，用于调整球谐光照的强度或颜色。
+	// 第0阶球谐系数，通常用于表示环境光照的平均颜色
 	color = SH_C0 * get_vec3(sh_start);
 	
 	if (sh_dim > 3 && render_mod >= 1)  // 1 * 3
@@ -220,7 +289,13 @@ void main()
 		float x = dir.x;
 		float y = dir.y;
 		float z = dir.z;
-		color = color - SH_C1 * y * get_vec3(sh_start + 1 * 3) + SH_C1 * z * get_vec3(sh_start + 2 * 3) - SH_C1 * x * get_vec3(sh_start + 3 * 3);
+		color = color 
+				- SH_C1 * y * get_vec3(sh_start + 1 * 3)  // 对应Y方向影响
+				+ SH_C1 * z * get_vec3(sh_start + 2 * 3)  // 对应Z方向影响
+				- SH_C1 * x * get_vec3(sh_start + 3 * 3); // 对应X方向影响
+
+		// 乘以dc_factor
+		color *= dc_factor;
 
 		if (sh_dim > 12 && render_mod >= 2)  // (1 + 3) * 3
 		{
@@ -244,7 +319,11 @@ void main()
 					SH_C3_5 * z * (xx - yy) * get_vec3(sh_start + 14 * 3) +
 					SH_C3_6 * x * (xx - 3.0f * yy) * get_vec3(sh_start + 15 * 3);
 			}
+			// 乘以额外特征的调整系数
+			color *= extra_factor;
 		}
 	}
 	color += 0.5f;
+
+	color *= color_scale_factors; // 将颜色向量的每个分量乘以对应的缩放因子
 }

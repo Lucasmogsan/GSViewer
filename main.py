@@ -33,10 +33,11 @@ g_renderer: GaussianRenderBase = g_renderer_list[g_renderer_idx]
 g_scale_modifier = 1.
 g_auto_sort = False
 g_show_control_win = True
-g_show_help_win = True
+g_show_help_win = False
 g_show_camera_win = False
-g_render_mode_tables = ["Gaussian Ball", "Flat Ball", "Billboard", "Depth", "SH:0", "SH:0~1", "SH:0~2", "SH:0~3 (default)"]
-g_render_mode = 7
+g_render_mode_tables = ["Gaussian Ball", "Flat Ball", "Billboard", "Depth", "Normal", "Billboard Normal", "SH:0", "SH:0~1", "SH:0~2", "SH:0~3 (default)"]
+g_render_mode = 9
+
 
 # Initialize rendering boundary related variables
 g_show_render_boundary = True
@@ -49,6 +50,11 @@ tmp_cube_rotation = [0.0, 0.0, 0.0]
 tmp_cube_min = [-4.0, -4.0, -4.0]
 tmp_cube_max = [4.0, 4.0, 4.0]
 
+dc_scale_factor = 1.0  # 直流特征的缩放因子
+extra_scale_factor = 1.0  # 额外特征的缩放因子
+g_rgb_factor = [1.0, 1.0, 1.0]# 在rgb全局变量区域添加
+g_rot_modifier = [0.0, 0.0, 0.0] #设置一个旋转修正因子，默认是1。
+g_light_rotation = [0.0, 0.0, 0.0]  # 光照旋转角度，初始化为0
 
 def impl_glfw_init():
     window_name = "NeUVF editor"
@@ -128,6 +134,7 @@ def main():
     global g_camera, g_renderer, g_renderer_list, g_renderer_idx, g_scale_modifier, g_auto_sort, \
         g_show_control_win, g_show_help_win, g_show_camera_win, \
         g_render_mode, g_render_mode_tables, \
+        dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, \
         g_show_render_boundary, g_enable_render_boundary_aabb, use_axis_for_rotation, g_cube_min, g_cube_max, g_cube_rotation, tmp_cube_min, tmp_cube_max, tmp_cube_rotation
         
     imgui.create_context()
@@ -228,23 +235,108 @@ def main():
                 )
                 g_camera.is_intrin_dirty = changed
                 update_camera_intrin_lazy()
+
+                # 添加控制features_dc的滑动条
+                changed_dc_scale, new_dc_scale_factor = imgui.slider_float(
+                    "DC Scale", dc_scale_factor, 0.1, 2.0, "DC Scale Factor = %.2f")
+                imgui.same_line()
+                if imgui.button(label="Reset DC Scale"):
+                    new_dc_scale_factor = 1.
+                    changed_dc_scale = True
+                if changed_dc_scale:
+                    g_renderer.adjust_dc_features(new_dc_scale_factor)
+                    dc_scale_factor = new_dc_scale_factor
+
+                # 添加控制features_extra的滑动条
+                changed_extra_scale, new_extra_scale_factor = imgui.slider_float(
+                    "Extra Scale", extra_scale_factor, 0.1, 2.0, "Extra Scale Factor = %.2f")
+                imgui.same_line()
+                if imgui.button(label="Reset Extra Scale"):
+                    new_extra_scale_factor = 1.
+                    changed_extra_scale = True
+                if changed_extra_scale:
+                    g_renderer.adjust_extra_features(new_extra_scale_factor)
+                    extra_scale_factor = new_extra_scale_factor
+
+                # 在Control面板中添加滑动条，对rgb进行变化
+                changed_red, g_rgb_factor[0] = imgui.slider_float(
+                    "Red", g_rgb_factor[0], 0.00, 2.0, "%.4f")
+                imgui.same_line()
+                if imgui.button(label="Reset Red"):
+                    g_rgb_factor[0] = 1.
+                    changed_red = True
+                changed_green, g_rgb_factor[1] = imgui.slider_float(
+                    "Green", g_rgb_factor[1], 0.00, 2.0, "%.4f")
+                imgui.same_line()
+                if imgui.button(label="Reset Green"):
+                    g_rgb_factor[1] = 1.
+                    changed_green = True
+                changed_blue, g_rgb_factor[2] = imgui.slider_float(
+                    "Blue", g_rgb_factor[2], 0.00, 2.0, "%.4f")
+                imgui.same_line()
+                if imgui.button(label="Reset Blue"):
+                    g_rgb_factor[2] = 1.
+                    changed_blue = True
+                if changed_red or changed_green or changed_blue:
+                    # 当任何一个颜色滑动条的值改变时，更新渲染器中的颜色
+                    g_renderer.update_color_factor(g_rgb_factor)
                 
                 # scale modifier
-                changed, g_scale_modifier = imgui.slider_float(
-                    "", g_scale_modifier, 0.1, 10, "scale modifier = %.3f"
+                changed_scale, g_scale_modifier = imgui.slider_float(
+                    "scale", g_scale_modifier, 0.1, 10, "scale modifier = %.3f"
                 )
                 imgui.same_line()
-                if imgui.button(label="reset"):
+                if imgui.button(label="Reset scale"):
                     g_scale_modifier = 1.
-                    changed = True
+                    changed_scale = True
                     
-                if changed:
+                if changed_scale:
                     g_renderer.set_scale_modifier(g_scale_modifier)
+                
+                # 在ImGui的控制面板中添加旋转控制的滑动条
+                changed_x, g_rot_modifier[0] = imgui.slider_float("Rot X°", g_rot_modifier[0], -180.0, 180.0, "%.1f")
+                imgui.same_line()
+                if imgui.button("Reset X"):
+                    g_rot_modifier[0] = 0.0
+                    changed_x = True
+                changed_y, g_rot_modifier[1] = imgui.slider_float("Rot Y°", g_rot_modifier[1], -180.0, 180.0, "%.1f")
+                imgui.same_line()
+                if imgui.button("Reset Y"):
+                    g_rot_modifier[1] = 0.0
+                    changed_y = True
+                changed_z, g_rot_modifier[2] = imgui.slider_float("Rot Z°", g_rot_modifier[2], -180.0, 180.0, "%.1f")
+                imgui.same_line()
+                if imgui.button("Reset Z"):
+                    g_rot_modifier[2] = 0.0
+                    changed_z = True
+                # 当旋转滑动条的值改变时，或者任何一个轴的重置按钮被点击时
+                if changed_x or changed_y or changed_z:
+                    g_renderer.set_rot_modifier(g_rot_modifier)
+                
+                # 添加控制光照旋转的滑动条
+                changed_x, g_light_rotation[0] = imgui.slider_float("Light Rot X°", g_light_rotation[0], -180.0, 180.0, "%.1f")
+                imgui.same_line()
+                if imgui.button("Reset Light X"):
+                    g_light_rotation[0] = 0.0
+                    changed_x = True
+                changed_y, g_light_rotation[1] = imgui.slider_float("Light Rot Y°", g_light_rotation[1], -180.0, 180.0, "%.1f")
+                imgui.same_line()
+                if imgui.button("Reset Light Y"):
+                    g_light_rotation[1] = 0.0
+                    changed_y = True
+                changed_z, g_light_rotation[2] = imgui.slider_float("Light Rot Z°", g_light_rotation[2], -180.0, 180.0, "%.1f")
+                imgui.same_line()
+                if imgui.button("Reset Light Z"):
+                    g_light_rotation[2] = 0.0
+                    changed_z = True
+                if changed_x or changed_y or changed_z:
+                    # 当任何一个轴的旋转角度改变时，更新渲染器中的光照旋转
+                    g_renderer.set_light_rotation(g_light_rotation)
                 
                 # render mode
                 changed, g_render_mode = imgui.combo("shading", g_render_mode, g_render_mode_tables)
                 if changed:
-                    g_renderer.set_render_mod(g_render_mode - 4)
+                    g_renderer.set_render_mod(g_render_mode - 6)
                 
                 # sort button
                 if imgui.button(label='sort Gaussians'):
@@ -424,28 +516,28 @@ def main():
                     "r", g_camera.rot_sensitivity, 0.002, 0.1, "rotate speed = %.3f"
                 )
             imgui.same_line()
-            if imgui.button(label="reset r"):
+            if imgui.button(label="Reset r"):
                 g_camera.rot_sensitivity = 0.02
 
             changed, g_camera.trans_sensitivity = imgui.slider_float(
                     "m", g_camera.trans_sensitivity, 0.001, 0.03, "move speed = %.3f"
                 )
             imgui.same_line()
-            if imgui.button(label="reset m"):
+            if imgui.button(label="Reset m"):
                 g_camera.trans_sensitivity = 0.01
 
             changed, g_camera.zoom_sensitivity = imgui.slider_float(
                     "z", g_camera.zoom_sensitivity, 0.001, 0.05, "zoom speed = %.3f"
                 )
             imgui.same_line()
-            if imgui.button(label="reset z"):
+            if imgui.button(label="Reset z"):
                 g_camera.zoom_sensitivity = 0.01
 
             changed, g_camera.roll_sensitivity = imgui.slider_float(
                     "ro", g_camera.roll_sensitivity, 0.003, 0.1, "roll speed = %.3f"
                 )
             imgui.same_line()
-            if imgui.button(label="reset ro"):
+            if imgui.button(label="Reset ro"):
                 g_camera.roll_sensitivity = 0.03
 
         if g_show_help_win:

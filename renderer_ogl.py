@@ -159,7 +159,7 @@ class OpenGLRenderer(GaussianRenderBase):
         self.gau_bufferid = None
         self.index_bufferid = None
 
-        # initial box
+        # initial box 初始包围盒
         self.switch_show_boundary_box = False
         # 创建并绑定顶点数组对象
         self.vao_box = gl.glGenVertexArrays(1)
@@ -173,6 +173,13 @@ class OpenGLRenderer(GaussianRenderBase):
         gl.glDisable(gl.GL_CULL_FACE)
         gl.glEnable(gl.GL_BLEND)
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+
+        # 设置初始值color_scale_factors
+        util.set_uniform_v3(self.program, [1.0, 1.0, 1.0], "color_scale_factors")
+        # 设置初始值DC特征的调整系数dc_factor
+        util.set_uniform_1f(self.program, 1.0, "dc_factor")
+        # 设置初始值extra_factor
+        util.set_uniform_1f(self.program, 1.0, "extra_factor")
 
         self.update_vsync()
 
@@ -197,6 +204,27 @@ class OpenGLRenderer(GaussianRenderBase):
                                                          bind_idx=0,
                                                          buffer_id=self.gau_bufferid)
         util.set_uniform_1int(self.program, gaus.sh_dim, "sh_dim")
+
+
+    # 针对高斯元对象调整
+    # 更新DC特征的调整系数并应用所有调整
+    def adjust_dc_features(self, dc_factor):
+        util.set_uniform_1f(self.program, dc_factor, "dc_factor")
+    # 更新额外特征的调整系数并应用所有调整
+    def adjust_extra_features(self, extra_factor):
+        util.set_uniform_1f(self.program, extra_factor, "extra_factor")
+    # 更新颜色调整系数并应用所有调整
+    def update_color_factor(self, g_rgb_factor):
+        util.set_uniform_v3(self.program, g_rgb_factor, "color_scale_factors")
+    # 设置旋转修改因子
+    def set_rot_modifier(self, modifier):
+        quat = util.euler_to_quaternion(modifier[0], modifier[1], modifier[2])
+        util.set_uniform_4f(self.program, "rot_modifier", quat.x, quat.y, quat.z, quat.w)
+    # 设置光照旋转因子
+    def set_light_rotation(self, lightRotation):
+        # rotation参数是一个包含三个元素的列表或元组，分别代表绕X、Y、Z轴的旋转角度
+        util.set_uniform_v3(self.program, lightRotation, "light_rotation")
+
 
     def sort_and_update(self, camera: util.Camera):
         index = _sort_gaussian(self.gaussians, camera.get_view_matrix())
@@ -224,6 +252,7 @@ class OpenGLRenderer(GaussianRenderBase):
         util.set_uniform_mat4(self.program, proj_mat, "projection_matrix")
         util.set_uniform_v3(self.program, camera.get_htanfovxy_focal(), "hfovxy_focal")
 
+    # 包围盒
     # Set the center point coordinates
     def set_points_center(self, points_center: list):
         util.set_uniform_v3(self.program, points_center, "points_center")

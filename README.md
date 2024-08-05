@@ -4,6 +4,9 @@ This is a simple Gaussian Splatting Viewer built with PyOpenGL / CUDARasterizer.
 
 ## News
 
+- 2024/08/05: Gaussian element control
+  ![Gaussian_element_contral](./assets/Gaussian_element_contral.gif)
+
 - 2024/08/04: Enable the OBB axis and adjust the shader to constrain the rendering of Gaussian elements to determine whether they are within the bounding box content.
   ![Modify_aabb_and_obb_boundary_box](./assets/Modify_aabb_and_obb_boundary_box.gif)
 

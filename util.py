@@ -323,6 +323,11 @@ def set_uniform_v3(shader, contents, name):
         contents[0], contents[1], contents[2]
     )
 
+def set_uniform_4f(shader, name, x, y, z, w):
+    glUseProgram(shader)
+    location = glGetUniformLocation(shader, name)
+    glUniform4f(location, x, y, z, w)
+
 def set_uniform_v1f(shader, contents, name):
     glUseProgram(shader)
     glUniform1fv(
@@ -392,6 +397,19 @@ def convert_angles_to_rotation_matrix(angles):
     # Combined rotation matrix
     R = np.dot(Rz, np.dot(Ry, Rx))
     return R
+
+def euler_to_quaternion(roll, pitch, yaw):
+    # 将角度从度转换为弧度
+    roll = glm.radians(roll)
+    pitch = glm.radians(pitch)
+    yaw = glm.radians(yaw)
+
+    qx = glm.sin(roll/2) * glm.cos(pitch/2) * glm.cos(yaw/2) - glm.cos(roll/2) * glm.sin(pitch/2) * glm.sin(yaw/2)
+    qy = glm.cos(roll/2) * glm.sin(pitch/2) * glm.cos(yaw/2) + glm.sin(roll/2) * glm.cos(pitch/2) * glm.sin(yaw/2)
+    qz = glm.cos(roll/2) * glm.cos(pitch/2) * glm.sin(yaw/2) - glm.sin(roll/2) * glm.sin(pitch/2) * glm.cos(yaw/2)
+    qw = glm.cos(roll/2) * glm.cos(pitch/2) * glm.cos(yaw/2) + glm.sin(roll/2) * glm.sin(pitch/2) * glm.sin(yaw/2)
+
+    return glm.quat(qw, qx, qy, qz)
 
 def convert_rotation_matrix_to_euler_angles(R):
     """
