@@ -222,7 +222,9 @@ def main():
                         )
                     if file_path:
                         try:
-                            gaussians = util_gau.load_ply(file_path, 5.0)
+                            # gaussians = util_gau.load_ply(file_path, 5.0)
+                            gaussians = util_gau.load_ply(file_path)  # 移除缩放因子参数
+                            gaussians.scale_data(5.0)  # 应用缩放
                             g_renderer.update_gaussian_data(gaussians)
                             g_renderer.set_points_center(gaussians.points_center)
                             g_renderer.sort_and_update(g_camera)
@@ -499,6 +501,43 @@ def main():
                     # 绘制边界框
                     if g_enable_render_boundary_aabb:
                         g_renderer.draw_boundary_box(gaussians.points_center, g_cube_min, g_cube_max, g_cube_rotation, g_camera)
+
+                # 如果AABB启用，则显示导出按钮和路径选择
+                if g_enable_render_boundary_aabb:
+                    # 导出文件路径行
+                    imgui.text("Export file path:")
+                    changed, export_path = imgui.input_text("##exportpath", export_path, 256)
+                    imgui.same_line()  # 确保浏览按钮在文本框同一行显示
+                    if imgui.button("Browse##export"):
+                        root = tk.Tk()
+                        root.withdraw()  # 隐藏Tkinter主窗口
+                        selected_path = filedialog.asksaveasfilename(
+                            parent=root,
+                            title="Select export file",
+                            filetypes=[('PLY Files', '*.ply')],
+                            defaultextension='.ply'
+                        )
+                        if selected_path:  # 确保用户选择了文件
+                            export_path = selected_path
+                            export_status = "File selected"  # 更新状态为文件已选择
+
+                    # 导出按钮
+                    if imgui.button("Export"):
+                        if export_path:  # 确保路径存在才可以使用
+                            # 调用export_ply函数，传入export_path和其他必要参数
+                            success = util_gau.export_ply(gaussians, export_path, g_enable_render_boundary_aabb, g_enable_render_boundary_obb, g_cube_min, g_cube_max, g_cube_rotation)
+                            if success:
+                                export_status = "Export successful"  # 设置状态为成功
+                            else:
+                                export_status = "Export failed"  # 设置状态为失败
+                        else:
+                            export_status = "No file path selected"  # 设置状态为未选择文件路径
+                    # 更新状态显示
+                    imgui.same_line()  # 确保状态信息在文本框同一行显示
+                    imgui.text(export_status)  # 显示当前的导出状态
+                else:
+                    export_path = ""  # 确保当AABB未启用时清空路径
+                    export_status = "Please select export file path"  # 重置状态为默认文本
 
                 imgui.end()
 

@@ -370,7 +370,7 @@ def update_texture2d(img, texid, offset):
         GL_RGB, GL_UNSIGNED_BYTE, img
     )
 
-def convert_angles_to_rotation_matrix(angles):
+def convert_euler_angles_to_rotation_matrix(angles):
     # Convert angles from degrees to radians
     angles = np.radians(angles)
     # Compute sine and cosine for each angle

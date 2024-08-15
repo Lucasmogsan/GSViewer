@@ -1,8 +1,11 @@
 import numpy as np
-from plyfile import PlyData
-from dataclasses import dataclass
+from plyfile import PlyElement, PlyData
+from dataclasses import dataclass, field
 import scipy as sp
 import open3d as o3d
+import util
+import argparse
+from tools.gsconverter.main import gsconverter
 
 @dataclass
 class GaussianData:
@@ -11,13 +14,63 @@ class GaussianData:
     scale: np.ndarray
     opacity: np.ndarray
     sh: np.ndarray
+    path: str = None
+    _original_data: dict = field(default_factory=dict, init=False, repr=False)
+    
+    def __post_init__(self):
+        # 在初始化后存储原始数据的深拷贝
+        self._original_data['xyz'] = np.copy(self.xyz)
+        self._original_data['rot'] = np.copy(self.rot)
+        self._original_data['scale'] = np.copy(self.scale)
+        self._original_data['opacity'] = np.copy(self.opacity)
+        self._original_data['sh'] = np.copy(self.sh)
+
+    def __len__(self):
+        return len(self.xyz)
+    
+    def __getitem__(self, idx):
+        return GaussianData(
+            xyz=self.xyz[idx],
+            rot=self.rot[idx],
+            scale=self.scale[idx],
+            opacity=self.opacity[idx],
+            sh=self.sh[idx]
+        )
+    
     def flat(self) -> np.ndarray:
         ret = np.concatenate([self.xyz, self.rot, self.scale, self.opacity, self.sh], axis=-1)
         return np.ascontiguousarray(ret)
     
-    def __len__(self):
-        return len(self.xyz)
-    
+    def scale_data(self, scale_to_interval):
+        min_xyz = np.min(self.xyz, axis=0)
+        max_xyz = np.max(self.xyz, axis=0)
+        center_xyz = (min_xyz + max_xyz) / 2
+        max_extent = np.max(max_xyz - min_xyz)
+        scale_factor = scale_to_interval / max_extent
+        self.xyz = (self.xyz - center_xyz) * scale_factor
+        self.rot = self.rot / np.linalg.norm(self.rot, axis=1, keepdims=True)  # 如果rot是法线
+        self.scale *= scale_factor
+
+    @property 
+    def restore_original_state(self):
+        # 恢复所有数据到其原始状态
+        self.xyz = np.copy(self._original_data['xyz'])
+        self.rot = np.copy(self._original_data['rot'])
+        self.scale = np.copy(self._original_data['scale'])
+        self.opacity = np.copy(self._original_data['opacity'])
+        self.sh = np.copy(self._original_data['sh'])
+
+    @property 
+    def get_original_state(self):
+        # 返回一个新的GaussianData实例，其数据为原始数据的副本
+        return GaussianData(
+            xyz=np.copy(self._original_data['xyz']),
+            rot=np.copy(self._original_data['rot']),
+            scale=np.copy(self._original_data['scale']),
+            opacity=np.copy(self._original_data['opacity']),
+            sh=np.copy(self._original_data['sh'])
+        )
+
     @property 
     def sh_dim(self):
         return self.sh.shape[-1]
@@ -128,109 +181,157 @@ def naive_gaussian():
         gau_c
     )
 
-# def load_ply(path):
-#     max_sh_degree = 3
-#     plydata = PlyData.read(path)
-#     xyz = np.stack((np.asarray(plydata.elements[0]["x"]),
-#                     np.asarray(plydata.elements[0]["y"]),
-#                     np.asarray(plydata.elements[0]["z"])),  axis=1)
-#     opacities = np.asarray(plydata.elements[0]["opacity"])[..., np.newaxis]
-
-#     features_dc = np.zeros((xyz.shape[0], 3, 1))
-#     features_dc[:, 0, 0] = np.asarray(plydata.elements[0]["f_dc_0"])
-#     features_dc[:, 1, 0] = np.asarray(plydata.elements[0]["f_dc_1"])
-#     features_dc[:, 2, 0] = np.asarray(plydata.elements[0]["f_dc_2"])
-
-#     extra_f_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("f_rest_")]
-#     extra_f_names = sorted(extra_f_names, key = lambda x: int(x.split('_')[-1]))
-#     assert len(extra_f_names)==3 * (max_sh_degree + 1) ** 2 - 3
-#     features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
-#     for idx, attr_name in enumerate(extra_f_names):
-#         features_extra[:, idx] = np.asarray(plydata.elements[0][attr_name])
-#     # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
-#     features_extra = features_extra.reshape((features_extra.shape[0], 3, (max_sh_degree + 1) ** 2 - 1))
-#     features_extra = np.transpose(features_extra, [0, 2, 1])
-
-#     scale_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("scale_")]
-#     scale_names = sorted(scale_names, key = lambda x: int(x.split('_')[-1]))
-#     scales = np.zeros((xyz.shape[0], len(scale_names)))
-#     for idx, attr_name in enumerate(scale_names):
-#         scales[:, idx] = np.asarray(plydata.elements[0][attr_name])
-
-#     rot_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("rot")]
-#     rot_names = sorted(rot_names, key = lambda x: int(x.split('_')[-1]))
-#     rots = np.zeros((xyz.shape[0], len(rot_names)))
-#     for idx, attr_name in enumerate(rot_names):
-#         rots[:, idx] = np.asarray(plydata.elements[0][attr_name])
-
-#     # pass activate function
-#     xyz = xyz.astype(np.float32)
-#     rots = rots / np.linalg.norm(rots, axis=-1, keepdims=True)
-#     rots = rots.astype(np.float32)
-#     scales = np.exp(scales)
-#     scales = scales.astype(np.float32)
-#     opacities = 1/(1 + np.exp(- opacities))  # sigmoid
-#     opacities = opacities.astype(np.float32)
-#     shs = np.concatenate([features_dc.reshape(-1, 3), 
-#                         features_extra.reshape(len(features_dc), -1)], axis=-1).astype(np.float32)
-#     shs = shs.astype(np.float32)
-#     return GaussianData(xyz, rots, scales, opacities, shs)
-
-def load_ply(path, scale_to_interval):
+def load_ply(path):
     max_sh_degree = 3
     plydata = PlyData.read(path)
     xyz = np.stack((np.asarray(plydata.elements[0]["x"]),
                     np.asarray(plydata.elements[0]["y"]),
                     np.asarray(plydata.elements[0]["z"])),  axis=1)
-    # 计算模型的边界
-    min_xyz = np.min(xyz, axis=0)
-    max_xyz = np.max(xyz, axis=0)
-    center_xyz = (min_xyz + max_xyz) / 2
-    max_extent = np.max(max_xyz - min_xyz)
-    # 计算缩放因子
-    scale_factor = scale_to_interval / max_extent
-    # 应用缩放和中心化
-    xyz = (xyz - center_xyz) * scale_factor
-
-    # 处理法线
-    normals = np.stack((np.asarray(plydata.elements[0]["nx"]),
-                        np.asarray(plydata.elements[0]["ny"]),
-                        np.asarray(plydata.elements[0]["nz"])), axis=1)
-    normals = normals / np.linalg.norm(normals, axis=1, keepdims=True)
-
-    # 处理其他属性
     opacities = np.asarray(plydata.elements[0]["opacity"])[..., np.newaxis]
+
     features_dc = np.zeros((xyz.shape[0], 3, 1))
     features_dc[:, 0, 0] = np.asarray(plydata.elements[0]["f_dc_0"])
     features_dc[:, 1, 0] = np.asarray(plydata.elements[0]["f_dc_1"])
     features_dc[:, 2, 0] = np.asarray(plydata.elements[0]["f_dc_2"])
 
     extra_f_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("f_rest_")]
-    extra_f_names = sorted(extra_f_names, key=lambda x: int(x.split('_')[-1]))
+    extra_f_names = sorted(extra_f_names, key = lambda x: int(x.split('_')[-1]))
+    assert len(extra_f_names)==3 * (max_sh_degree + 1) ** 2 - 3
     features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
     for idx, attr_name in enumerate(extra_f_names):
         features_extra[:, idx] = np.asarray(plydata.elements[0][attr_name])
+    # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
     features_extra = features_extra.reshape((features_extra.shape[0], 3, (max_sh_degree + 1) ** 2 - 1))
     features_extra = np.transpose(features_extra, [0, 2, 1])
 
     scale_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("scale_")]
-    scale_names = sorted(scale_names, key=lambda x: int(x.split('_')[-1]))
+    scale_names = sorted(scale_names, key = lambda x: int(x.split('_')[-1]))
     scales = np.zeros((xyz.shape[0], len(scale_names)))
     for idx, attr_name in enumerate(scale_names):
         scales[:, idx] = np.asarray(plydata.elements[0][attr_name])
-    scales = np.exp(scales) * scale_factor  # 调整局部缩放
 
     rot_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("rot")]
-    rot_names = sorted(rot_names, key=lambda x: int(x.split('_')[-1]))
+    rot_names = sorted(rot_names, key = lambda x: int(x.split('_')[-1]))
     rots = np.zeros((xyz.shape[0], len(rot_names)))
     for idx, attr_name in enumerate(rot_names):
         rots[:, idx] = np.asarray(plydata.elements[0][attr_name])
+
+    # pass activate function
+    xyz = xyz.astype(np.float32)
     rots = rots / np.linalg.norm(rots, axis=-1, keepdims=True)
+    rots = rots.astype(np.float32)
+    scales = np.exp(scales)
+    scales = scales.astype(np.float32)
+    opacities = 1/(1 + np.exp(- opacities))  # sigmoid
+    opacities = opacities.astype(np.float32)
+    shs = np.concatenate([features_dc.reshape(-1, 3), 
+                        features_extra.reshape(len(features_dc), -1)], axis=-1).astype(np.float32)
+    shs = shs.astype(np.float32)
+    return GaussianData(xyz, rots, scales, opacities, shs, path=path)
 
-    opacities = 1 / (1 + np.exp(-opacities))  # sigmoid
-    shs = np.concatenate([features_dc.reshape(-1, 3), features_extra.reshape(len(features_dc), -1)], axis=-1).astype(np.float32)
+def is_inside_rotated_cube(enable_aabb, enable_obb, point, points_center, cube_min, cube_max, rotation_matrix):
+    if enable_aabb == 0 and enable_obb == 0:
+        return True
+    if enable_obb == 1:
+        transformed_point = np.dot(np.linalg.inv(rotation_matrix), (point - points_center))
+        return np.all(transformed_point >= cube_min) and np.all(transformed_point <= cube_max)
+    if enable_aabb == 1:
+        transformed_point = point - points_center
+        cube_min_point = points_center + cube_min
+        cube_max_point = points_center + cube_max
+        return np.all(transformed_point >= cube_min_point) and np.all(transformed_point <= cube_max_point)
+    return False
 
-    return GaussianData(xyz.astype(np.float32), rots.astype(np.float32), scales.astype(np.float32), opacities.astype(np.float32), shs.astype(np.float32))
+# def export_ply(gaussian_data, path, enable_aabb, enable_obb, cube_min, cube_max, cube_rotation):
+#     rotation_matrix = util.convert_euler_angles_to_rotation_matrix(cube_rotation)
+#     points_center = np.mean(gaussian_data.xyz, axis=0)  # Assuming center is the mean of points
+
+#     # Filter points inside the cube
+#     mask = np.array([is_inside_rotated_cube(enable_aabb, enable_obb, point, points_center, cube_min, cube_max, rotation_matrix) for point in gaussian_data.xyz])
+    
+#     # 获取原始数据的副本
+#     original_data = gaussian_data.get_original_state
+
+#     # Apply the mask to all attributes of the GaussianData
+#     filtered_xyz = original_data.xyz[mask]
+#     filtered_rot = original_data.rot[mask]
+#     filtered_scale = original_data.scale[mask]
+#     filtered_opacity = original_data.opacity[mask]
+#     filtered_sh = original_data.sh[mask]
+
+#     # Fill the structured array with data from the filtered attributes
+#     max_sh_degree = 3
+#     data = {
+#         'x': filtered_xyz[:, 0],
+#         'y': filtered_xyz[:, 1],
+#         'z': filtered_xyz[:, 2],
+#         'nx': filtered_rot[:, 0],
+#         'ny': filtered_rot[:, 1],
+#         'nz': filtered_rot[:, 2],
+#         'f_dc_0': filtered_sh[:, 0].flatten(),
+#         'f_dc_1': filtered_sh[:, 1].flatten(),
+#         'f_dc_2': filtered_sh[:, 2].flatten(),
+#         **{f'f_rest_{i}': filtered_sh[:, i].flatten() for i in range(3 * ((max_sh_degree + 1) ** 2 - 1))},
+#         'opacity': filtered_opacity.flatten(),
+#         'scale_0': filtered_scale[:, 0],
+#         'scale_1': filtered_scale[:, 1],
+#         'scale_2': filtered_scale[:, 2],
+#         'rot_0': filtered_rot[:, 0],
+#         'rot_1': filtered_rot[:, 1],
+#         'rot_2': filtered_rot[:, 2],
+#         'rot_3': filtered_rot[:, 3]
+#     }
+
+#     # Define the data type for the structured array
+#     dtype_3dgs = [
+#         ('x', 'f4'), ('y', 'f4'), ('z', 'f4'), ('nx', 'f4'), ('ny', 'f4'), ('nz', 'f4'),
+#         ('f_dc_0', 'f4'), ('f_dc_1', 'f4'), ('f_dc_2', 'f4'),
+#         *[(f'f_rest_{i}', 'f4') for i in range(3 * ((max_sh_degree + 1) ** 2 - 1))],
+#         ('opacity', 'f4'), ('scale_0', 'f4'), ('scale_1', 'f4'), ('scale_2', 'f4'),
+#         ('rot_0', 'f4'), ('rot_1', 'f4'), ('rot_2', 'f4'), ('rot_3', 'f4')
+#     ]
+
+#     # Create a new structured numpy array for 3DGS format
+#     structured_array = np.zeros(len(filtered_xyz), dtype=dtype_3dgs)
+
+#     for field in dtype_3dgs:
+#         field_name = field[0]
+#         structured_array[field_name] = data[field_name]
+
+#     # Save the converted data to the output file
+#     try:
+#         PlyData([PlyElement.describe(structured_array, 'vertex')], byte_order='=').write(path)
+#         return True  # 成功导出文件
+#     except Exception as e:
+#         print(f"导出失败: {e}")
+#         return False  # 导出失败
+
+def export_ply(gaussian_data, output_path, enable_aabb, enable_obb, cube_min, cube_max, cube_rotation):
+    # 计算旋转矩阵并过滤点
+    rotation_matrix = util.convert_euler_angles_to_rotation_matrix(cube_rotation)
+    points_center = np.mean(gaussian_data.xyz, axis=0)
+    mask = np.array([is_inside_rotated_cube(enable_aabb, enable_obb, point, points_center, cube_min, cube_max, rotation_matrix) for point in gaussian_data.xyz])
+    
+    # 应用掩码并计算边界框
+    original_data = gaussian_data.get_original_state
+    filtered_xyz = original_data.xyz[mask]
+    bbox_values = tuple(np.concatenate([np.min(filtered_xyz, axis=0), np.max(filtered_xyz, axis=0)]).tolist()) if filtered_xyz.size > 0 else None
+
+    # 准备转换参数
+    convertargs = argparse.Namespace(
+        input=gaussian_data.path,  # 使用GaussianData中的路径
+        output=output_path,
+        target_format="3dgs",
+        debug=False,  # 根据需要设置debug模式
+        rgb=False,  # 根据实际情况设置rgb参数
+        bbox=bbox_values,  # 设置计算出的bbox参数
+        density_filter=None,  # 如果需要，设置density_filter参数
+        remove_flyers=None  # 如果需要，设置remove_flyers参数
+    )
+    try:
+        gsconverter(convertargs)
+    except Exception as e:
+        print(e)
 
 if __name__ == "__main__":
     gs = load_ply("C:\\Users\\MSI_NB\\Downloads\\viewers\\models\\train\\point_cloud\\iteration_7000\\point_cloud.ply")
