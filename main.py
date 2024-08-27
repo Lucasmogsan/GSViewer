@@ -12,6 +12,8 @@ import os
 import sys
 import argparse
 from renderer_ogl import OpenGLRenderer, GaussianRenderBase
+from gui.camera_control import camera_control_ui
+from gui.help_content import help_window_ui
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -120,6 +122,7 @@ def update_activated_renderer_state(gaus: util_gau.GaussianData):
     g_renderer.update_gaussian_data(gaus)
     g_renderer.sort_and_update(g_camera)
     g_renderer.set_scale_modifier(g_scale_modifier)
+    g_renderer.set_rot_modifier(g_rot_modifier)
     g_renderer.set_render_mod(g_render_mode - 3)
     g_renderer.update_camera_pose(g_camera)
     g_renderer.update_camera_intrin(g_camera)
@@ -222,7 +225,6 @@ def main():
                         )
                     if file_path:
                         try:
-                            # gaussians = util_gau.load_ply(file_path, 5.0)
                             gaussians = util_gau.load_ply(file_path)  # 移除缩放因子参数
                             gaussians.scale_data(5.0)  # 应用缩放
                             g_renderer.update_gaussian_data(gaussians)
@@ -541,53 +543,11 @@ def main():
 
                 imgui.end()
 
-        if g_show_camera_win:
-            if imgui.button(label='rot 180'):
-                g_camera.flip_ground()
+        # 相机控制（包括相机旋转、平移、缩放）
+        camera_control_ui(g_camera, g_show_camera_win)
 
-            changed, g_camera.target_dist = imgui.slider_float(
-                    "t", g_camera.target_dist, 1., 8., "target dist = %.3f"
-                )
-            if changed:
-                g_camera.update_target_distance()
-
-            changed, g_camera.rot_sensitivity = imgui.slider_float(
-                    "r", g_camera.rot_sensitivity, 0.002, 0.1, "rotate speed = %.3f"
-                )
-            imgui.same_line()
-            if imgui.button(label="Reset r"):
-                g_camera.rot_sensitivity = 0.02
-
-            changed, g_camera.trans_sensitivity = imgui.slider_float(
-                    "m", g_camera.trans_sensitivity, 0.001, 0.03, "move speed = %.3f"
-                )
-            imgui.same_line()
-            if imgui.button(label="Reset m"):
-                g_camera.trans_sensitivity = 0.01
-
-            changed, g_camera.zoom_sensitivity = imgui.slider_float(
-                    "z", g_camera.zoom_sensitivity, 0.001, 0.05, "zoom speed = %.3f"
-                )
-            imgui.same_line()
-            if imgui.button(label="Reset z"):
-                g_camera.zoom_sensitivity = 0.01
-
-            changed, g_camera.roll_sensitivity = imgui.slider_float(
-                    "ro", g_camera.roll_sensitivity, 0.003, 0.1, "roll speed = %.3f"
-                )
-            imgui.same_line()
-            if imgui.button(label="Reset ro"):
-                g_camera.roll_sensitivity = 0.03
-
-        if g_show_help_win:
-            imgui.begin("Help", True)
-            imgui.text("Open Gaussian Splatting PLY file \n  by click 'open ply' button")
-            imgui.text("Use left click & move to rotate camera")
-            imgui.text("Use right click & move to translate camera")
-            imgui.text("Press Q/E to roll camera")
-            imgui.text("Use scroll to zoom in/out")
-            imgui.text("Use control panel to change setting")
-            imgui.end()
+        # 帮助内容
+        help_window_ui(g_show_help_win)
         
         imgui.render()
         impl.render(imgui.get_draw_data())

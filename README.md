@@ -4,15 +4,14 @@ This is a simple Gaussian Splatting Viewer built with PyOpenGL / CUDARasterizer.
 
 ## News
 
+- 2024/08/28: Optimize the calculation speed required to derive Gaussian elements and solve the rot update bug.
+  
 - 2024/08/15: Added export based on bounding box range
   
-  initial: 
-  
-  ![Export_based_on_bounding_box_range_original_state](./assets/Export_based_on_bounding_box_range_original_state.gif)
-  
-  export: 
-  
-  ![Export_based_on_bounding_box_range](./assets/Export_based_on_bounding_box_range.gif)
+  | initial:                                                     | export:                                                      |
+  | ------------------------------------------------------------ | ------------------------------------------------------------ |
+  | ![Export_based_on_bounding_box_range_original_state](./assets/Export_based_on_bounding_box_range_original_state.gif) | ![Export_based_on_bounding_box_range](./assets/Export_based_on_bounding_box_range.gif) |
+  | ![Export_based_on_bounding_box_range_original_state_Residence](./assets/Export_based_on_bounding_box_range_original_state_Residence.gif) | ![Export_based_on_bounding_box_range_Residence](./assets/Export_based_on_bounding_box_range_Residence.gif) |
   
 - 2024/08/05: Gaussian element control
   ![Gaussian_element_contral](./assets/Gaussian_element_contral.gif)

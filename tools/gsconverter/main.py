@@ -65,7 +65,7 @@ def gsconverter(args):
     if source_format == "cc" and args.target_format == "cc" and args.rgb:
         if 'red' in PlyData.read(args.input)['vertex']._property_lookup:
             print("Error: Source CC file already contains RGB data. Conversion stopped.")
-            return
+            return False
 
     # Read the data from the input file based on detected format
     if source_format == 'parquet':
@@ -107,8 +107,10 @@ def gsconverter(args):
         # Save the converted data to the output file
         PlyData([PlyElement.describe(converted_data, 'vertex')], byte_order='=').write(args.output)
         print(f"Conversion completed and saved to {args.output}.")
+        return True
     else:
         print("Conversion was skipped.")
+        return False
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Convert between standard 3D Gaussian Splat and Cloud Compare formats.")

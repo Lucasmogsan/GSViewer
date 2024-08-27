@@ -6,6 +6,7 @@ import open3d as o3d
 import util
 import argparse
 from tools.gsconverter.main import gsconverter
+import pandas as pd
 
 @dataclass
 class GaussianData:
@@ -48,7 +49,7 @@ class GaussianData:
         max_extent = np.max(max_xyz - min_xyz)
         scale_factor = scale_to_interval / max_extent
         self.xyz = (self.xyz - center_xyz) * scale_factor
-        self.rot = self.rot / np.linalg.norm(self.rot, axis=1, keepdims=True)  # 如果rot是法线
+        self.rot = self.rot / np.linalg.norm(self.rot, axis=-1, keepdims=True)  # 如果rot是法线
         self.scale *= scale_factor
 
     @property 
@@ -229,19 +230,19 @@ def load_ply(path):
     shs = shs.astype(np.float32)
     return GaussianData(xyz, rots, scales, opacities, shs, path=path)
 
-def is_inside_rotated_cube(enable_aabb, enable_obb, point, points_center, cube_min, cube_max, rotation_matrix):
-    if enable_aabb == 0 and enable_obb == 0:
-        return True
-    if enable_obb == 1:
-        transformed_point = np.dot(np.linalg.inv(rotation_matrix), (point - points_center))
-        return np.all(transformed_point >= cube_min) and np.all(transformed_point <= cube_max)
-    if enable_aabb == 1:
-        transformed_point = point - points_center
-        cube_min_point = points_center + cube_min
-        cube_max_point = points_center + cube_max
-        return np.all(transformed_point >= cube_min_point) and np.all(transformed_point <= cube_max_point)
-    return False
-
+# def is_inside_rotated_cube(enable_aabb, enable_obb, point, points_center, cube_min, cube_max, rotation_matrix):
+#     if enable_aabb == 0 and enable_obb == 0:
+#         return True
+#     if enable_obb == 1:
+#         transformed_point = np.dot(np.linalg.inv(rotation_matrix), (point - points_center))
+#         return np.all(transformed_point >= cube_min) and np.all(transformed_point <= cube_max)
+#     if enable_aabb == 1:
+#         transformed_point = point - points_center
+#         cube_min_point = points_center + cube_min
+#         cube_max_point = points_center + cube_max
+#         return np.all(transformed_point >= cube_min_point) and np.all(transformed_point <= cube_max_point)
+#     return False
+# 
 # def export_ply(gaussian_data, path, enable_aabb, enable_obb, cube_min, cube_max, cube_rotation):
 #     rotation_matrix = util.convert_euler_angles_to_rotation_matrix(cube_rotation)
 #     points_center = np.mean(gaussian_data.xyz, axis=0)  # Assuming center is the mean of points
@@ -310,11 +311,27 @@ def export_ply(gaussian_data, output_path, enable_aabb, enable_obb, cube_min, cu
     # 计算旋转矩阵并过滤点
     rotation_matrix = util.convert_euler_angles_to_rotation_matrix(cube_rotation)
     points_center = np.mean(gaussian_data.xyz, axis=0)
-    mask = np.array([is_inside_rotated_cube(enable_aabb, enable_obb, point, points_center, cube_min, cube_max, rotation_matrix) for point in gaussian_data.xyz])
-    
-    # 应用掩码并计算边界框
+    # 将数据转换为 DataFrame
+    df = pd.DataFrame(gaussian_data.xyz, columns=['x', 'y', 'z'])
+    # 计算变换后的点
+    transformed_points = df.values - points_center
+
+    # 过滤逻辑
+    if enable_aabb == 0 and enable_obb == 0:
+        mask = pd.Series(True, index=df.index)  # 创建全为 True 的 Series
+    elif enable_obb == 1:
+        transformed_points = pd.DataFrame(np.dot(np.linalg.inv(rotation_matrix), transformed_points.T).T, columns=['x', 'y', 'z'])
+        mask = (transformed_points.ge(cube_min).all(axis=1)) & (transformed_points.le(cube_max).all(axis=1))
+    elif enable_aabb == 1:
+        cube_min_point = points_center + cube_min
+        cube_max_point = points_center + cube_max
+        transformed_points = pd.DataFrame(transformed_points, columns=['x', 'y', 'z'])
+        mask = (transformed_points >= cube_min_point).all(axis=1) & (transformed_points <= cube_max_point).all(axis=1)
+        
+    # 获取原始数据的副本
     original_data = gaussian_data.get_original_state
-    filtered_xyz = original_data.xyz[mask]
+    # 应用掩码并计算边界框
+    filtered_xyz = original_data.xyz[mask]  # 使用原始数据
     bbox_values = tuple(np.concatenate([np.min(filtered_xyz, axis=0), np.max(filtered_xyz, axis=0)]).tolist()) if filtered_xyz.size > 0 else None
 
     # 准备转换参数
@@ -329,9 +346,11 @@ def export_ply(gaussian_data, output_path, enable_aabb, enable_obb, cube_min, cu
         remove_flyers=None  # 如果需要，设置remove_flyers参数
     )
     try:
-        gsconverter(convertargs)
+        success = gsconverter(convertargs)
+        return success
     except Exception as e:
         print(e)
+        return False
 
 if __name__ == "__main__":
     gs = load_ply("C:\\Users\\MSI_NB\\Downloads\\viewers\\models\\train\\point_cloud\\iteration_7000\\point_cloud.ply")
