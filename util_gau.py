@@ -43,12 +43,13 @@ class GaussianData:
         return np.ascontiguousarray(ret)
     
     def scale_data(self, scale_to_interval):
-        min_xyz = np.min(self.xyz, axis=0)
-        max_xyz = np.max(self.xyz, axis=0)
+        df = pd.DataFrame(self.xyz, columns=['x', 'y', 'z'])
+        min_xyz = df.min()
+        max_xyz = df.max()
         center_xyz = (min_xyz + max_xyz) / 2
-        max_extent = np.max(max_xyz - min_xyz)
+        max_extent = (max_xyz - min_xyz).max()
         scale_factor = scale_to_interval / max_extent
-        self.xyz = (self.xyz - center_xyz) * scale_factor
+        self.xyz = ((df - center_xyz) * scale_factor).values
         self.rot = self.rot / np.linalg.norm(self.rot, axis=-1, keepdims=True)  # 如果rot是法线
         self.scale *= scale_factor
 
@@ -113,13 +114,14 @@ class GaussianData:
     @property
     def compute_obb(self):
         """计算并返回OBB的八个角点"""
-        center = np.mean(self.xyz, axis=0)
-        centered_points = self.xyz - center
-        covariance_matrix = np.cov(centered_points, rowvar=False)
+        df = pd.DataFrame(self.xyz, columns=['x', 'y', 'z'])
+        center = df.mean()
+        centered_points = df - center
+        covariance_matrix = centered_points.cov()
         U, S, Vt = np.linalg.svd(covariance_matrix)
         projected_points = centered_points @ U
-        min_bounds = np.min(projected_points, axis=0)
-        max_bounds = np.max(projected_points, axis=0)
+        min_bounds = projected_points.min()
+        max_bounds = projected_points.max()
         obb_min = center + min_bounds @ U.T
         obb_max = center + max_bounds @ U.T
 
@@ -134,7 +136,7 @@ class GaussianData:
             [obb_min[0], obb_max[1], obb_max[2]],
             [obb_max[0], obb_max[1], obb_max[2]]
         ])
-        return obb_min, obb_max, U, obb_corners
+        return obb_min.values, obb_max.values, U, obb_corners
 
     def _apply_transformations(self):
         transformed_xyz = np.zeros_like(self.xyz)
@@ -182,53 +184,117 @@ def naive_gaussian():
         gau_c
     )
 
+# # 未使用pandas加载速度较慢
+# def load_ply(path):
+#     max_sh_degree = 3
+#     plydata = PlyData.read(path)
+#     xyz = np.stack((np.asarray(plydata.elements[0]["x"]),
+#                     np.asarray(plydata.elements[0]["y"]),
+#                     np.asarray(plydata.elements[0]["z"])),  axis=1)
+#     opacities = np.asarray(plydata.elements[0]["opacity"])[..., np.newaxis]
+
+#     features_dc = np.zeros((xyz.shape[0], 3, 1))
+#     features_dc[:, 0, 0] = np.asarray(plydata.elements[0]["f_dc_0"])
+#     features_dc[:, 1, 0] = np.asarray(plydata.elements[0]["f_dc_1"])
+#     features_dc[:, 2, 0] = np.asarray(plydata.elements[0]["f_dc_2"])
+
+#     extra_f_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("f_rest_")]
+#     extra_f_names = sorted(extra_f_names, key = lambda x: int(x.split('_')[-1]))
+#     assert len(extra_f_names)==3 * (max_sh_degree + 1) ** 2 - 3
+#     features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
+#     for idx, attr_name in enumerate(extra_f_names):
+#         features_extra[:, idx] = np.asarray(plydata.elements[0][attr_name])
+#     # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
+#     features_extra = features_extra.reshape((features_extra.shape[0], 3, (max_sh_degree + 1) ** 2 - 1))
+#     features_extra = np.transpose(features_extra, [0, 2, 1])
+
+#     scale_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("scale_")]
+#     scale_names = sorted(scale_names, key = lambda x: int(x.split('_')[-1]))
+#     scales = np.zeros((xyz.shape[0], len(scale_names)))
+#     for idx, attr_name in enumerate(scale_names):
+#         scales[:, idx] = np.asarray(plydata.elements[0][attr_name])
+
+#     rot_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("rot")]
+#     rot_names = sorted(rot_names, key = lambda x: int(x.split('_')[-1]))
+#     rots = np.zeros((xyz.shape[0], len(rot_names)))
+#     for idx, attr_name in enumerate(rot_names):
+#         rots[:, idx] = np.asarray(plydata.elements[0][attr_name])
+
+#     # pass activate function
+#     xyz = xyz.astype(np.float32)
+#     rots = rots / np.linalg.norm(rots, axis=-1, keepdims=True)
+#     rots = rots.astype(np.float32)
+#     scales = np.exp(scales)
+#     scales = scales.astype(np.float32)
+#     opacities = 1/(1 + np.exp(- opacities))  # sigmoid
+#     opacities = opacities.astype(np.float32)
+#     shs = np.concatenate([features_dc.reshape(-1, 3), 
+#                         features_extra.reshape(len(features_dc), -1)], axis=-1).astype(np.float32)
+#     shs = shs.astype(np.float32)
+#     return GaussianData(xyz, rots, scales, opacities, shs, path=path)
+
+# 使用pandas加载ply速度较快
 def load_ply(path):
     max_sh_degree = 3
     plydata = PlyData.read(path)
-    xyz = np.stack((np.asarray(plydata.elements[0]["x"]),
-                    np.asarray(plydata.elements[0]["y"]),
-                    np.asarray(plydata.elements[0]["z"])),  axis=1)
-    opacities = np.asarray(plydata.elements[0]["opacity"])[..., np.newaxis]
+    
+    # 创建一个包含所有相关数据的 DataFrame
+    df = pd.DataFrame({
+        'x': np.asarray(plydata.elements[0]["x"]),
+        'y': np.asarray(plydata.elements[0]["y"]),
+        'z': np.asarray(plydata.elements[0]["z"]),
+        'opacity': np.asarray(plydata.elements[0]["opacity"]),
+        'f_dc_0': np.asarray(plydata.elements[0]["f_dc_0"]),
+        'f_dc_1': np.asarray(plydata.elements[0]["f_dc_1"]),
+        'f_dc_2': np.asarray(plydata.elements[0]["f_dc_2"])
+    })
+    
+    xyz = df[['x', 'y', 'z']].values
+    opacities = df['opacity'].values[..., np.newaxis]
+    features_dc = df[['f_dc_0', 'f_dc_1', 'f_dc_2']].values.reshape(-1, 3, 1)
 
-    features_dc = np.zeros((xyz.shape[0], 3, 1))
-    features_dc[:, 0, 0] = np.asarray(plydata.elements[0]["f_dc_0"])
-    features_dc[:, 1, 0] = np.asarray(plydata.elements[0]["f_dc_1"])
-    features_dc[:, 2, 0] = np.asarray(plydata.elements[0]["f_dc_2"])
+    properties = plydata.elements[0].properties
+    property_names = {p.name: p for p in properties}
 
-    extra_f_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("f_rest_")]
-    extra_f_names = sorted(extra_f_names, key = lambda x: int(x.split('_')[-1]))
-    assert len(extra_f_names)==3 * (max_sh_degree + 1) ** 2 - 3
-    features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
-    for idx, attr_name in enumerate(extra_f_names):
-        features_extra[:, idx] = np.asarray(plydata.elements[0][attr_name])
-    # Reshape (P,F*SH_coeffs) to (P, F, SH_coeffs except DC)
+    extra_f_names = sorted(
+        (name for name in property_names if name.startswith("f_rest_")),
+        key=lambda x: int(x.split('_')[-1])
+    )
+    scale_names = sorted(
+        (name for name in property_names if name.startswith("scale_")),
+        key=lambda x: int(x.split('_')[-1])
+    )
+    rot_names = sorted(
+        (name for name in property_names if name.startswith("rot")),
+        key=lambda x: int(x.split('_')[-1])
+    )
+
+    all_features = pd.DataFrame({
+        **{name: np.asarray(plydata.elements[0][name]) for name in extra_f_names},
+        **{name: np.asarray(plydata.elements[0][name]) for name in scale_names},
+        **{name: np.asarray(plydata.elements[0][name]) for name in rot_names}
+    })
+
+    # 处理 features_extra
+    features_extra = all_features[extra_f_names].values
     features_extra = features_extra.reshape((features_extra.shape[0], 3, (max_sh_degree + 1) ** 2 - 1))
     features_extra = np.transpose(features_extra, [0, 2, 1])
 
-    scale_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("scale_")]
-    scale_names = sorted(scale_names, key = lambda x: int(x.split('_')[-1]))
-    scales = np.zeros((xyz.shape[0], len(scale_names)))
-    for idx, attr_name in enumerate(scale_names):
-        scales[:, idx] = np.asarray(plydata.elements[0][attr_name])
-
-    rot_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("rot")]
-    rot_names = sorted(rot_names, key = lambda x: int(x.split('_')[-1]))
-    rots = np.zeros((xyz.shape[0], len(rot_names)))
-    for idx, attr_name in enumerate(rot_names):
-        rots[:, idx] = np.asarray(plydata.elements[0][attr_name])
+    # 处理 scales 和 rots
+    scales = all_features[scale_names].values
+    rots = all_features[rot_names].values
 
     # pass activate function
     xyz = xyz.astype(np.float32)
     rots = rots / np.linalg.norm(rots, axis=-1, keepdims=True)
     rots = rots.astype(np.float32)
-    scales = np.exp(scales)
-    scales = scales.astype(np.float32)
-    opacities = 1/(1 + np.exp(- opacities))  # sigmoid
-    opacities = opacities.astype(np.float32)
+    scales = np.exp(scales).astype(np.float32)
+    opacities = (1 / (1 + np.exp(-opacities))).astype(np.float32)  # sigmoid
     shs = np.concatenate([features_dc.reshape(-1, 3), 
                         features_extra.reshape(len(features_dc), -1)], axis=-1).astype(np.float32)
-    shs = shs.astype(np.float32)
+
     return GaussianData(xyz, rots, scales, opacities, shs, path=path)
+
 
 # def is_inside_rotated_cube(enable_aabb, enable_obb, point, points_center, cube_min, cube_max, rotation_matrix):
 #     if enable_aabb == 0 and enable_obb == 0:

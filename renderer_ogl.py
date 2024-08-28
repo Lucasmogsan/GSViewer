@@ -18,13 +18,13 @@ def _sort_gaussian_cpu(gaus, view_mat):
     xyz = np.asarray(gaus.xyz)
     view_mat = np.asarray(view_mat)
 
-    xyz_view = view_mat[None, :3, :3] @ xyz[..., None] + view_mat[None, :3, 3, None]
-    depth = xyz_view[:, 2, 0]
+    # 使用矩阵乘法和广播计算深度
+    xyz_view = np.dot(view_mat[:3, :3], xyz.T).T + view_mat[:3, 3]
+    depth = xyz_view[:, 2]
 
     index = np.argsort(depth)
     index = index.astype(np.int32).reshape(-1, 1)
     return index
-
 
 def _sort_gaussian_cupy(gaus, view_mat):
     import cupy as cp
@@ -44,7 +44,6 @@ def _sort_gaussian_cupy(gaus, view_mat):
 
     index = cp.asnumpy(index) # convert to numpy
     return index
-
 
 def _sort_gaussian_torch(gaus, view_mat):
     global _sort_buffer_gausid, _sort_buffer_xyz

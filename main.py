@@ -59,7 +59,7 @@ g_rot_modifier = [0.0, 0.0, 0.0] #设置一个旋转修正因子，默认是1。
 g_light_rotation = [0.0, 0.0, 0.0]  # 光照旋转角度，初始化为0
 
 def impl_glfw_init():
-    window_name = "NeUVF editor"
+    window_name = "GSViewer"
 
     if not glfw.init():
         print("Could not initialize OpenGL context")
@@ -559,7 +559,7 @@ def main():
 
 if __name__ == "__main__":
     global args
-    parser = argparse.ArgumentParser(description="NeUVF editor with optional HiDPI support.")
+    parser = argparse.ArgumentParser(description="3DGS viewer with optional HiDPI support.")
     parser.add_argument("--hidpi", action="store_true", help="Enable HiDPI scaling for the interface.")
     args = parser.parse_args()
 
