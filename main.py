@@ -13,6 +13,7 @@ import sys
 import argparse
 from renderer_ogl import OpenGLRenderer, GaussianRenderBase
 from gui.camera_control import camera_control_ui
+from gui.gs_elements_control import gs_elements_control_ui
 from gui.help_content import help_window_ui
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -34,15 +35,15 @@ g_renderer_idx = BACKEND_OGL
 g_renderer: GaussianRenderBase = g_renderer_list[g_renderer_idx]
 g_scale_modifier = 1.
 g_auto_sort = False
-g_show_control_win = True
-g_show_help_win = False
-g_show_camera_win = False
+g_show_gs_elements_control = True
+g_show_help_control = False
+g_show_camera_control = False
 g_render_mode_tables = ["Gaussian Ball", "Flat Ball", "Billboard", "Depth", "Normal", "Billboard Normal", "SH:0", "SH:0~1", "SH:0~2", "SH:0~3 (default)"]
 g_render_mode = 9
 
 
 # Initialize rendering boundary related variables
-g_show_render_boundary = True
+g_show_render_boundary_control = True
 use_axis_for_rotation = False 
 g_enable_render_boundary_aabb = 0
 g_cube_rotation = [0.0, 0.0, 0.0]
@@ -135,10 +136,10 @@ def window_resize_callback(window, width, height):
 
 def main():
     global g_camera, g_renderer, g_renderer_list, g_renderer_idx, g_scale_modifier, g_auto_sort, \
-        g_show_control_win, g_show_help_win, g_show_camera_win, \
+        g_show_gs_elements_control, g_show_help_control, g_show_camera_control, \
         g_render_mode, g_render_mode_tables, \
         dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, \
-        g_show_render_boundary, g_enable_render_boundary_aabb, use_axis_for_rotation, g_cube_min, g_cube_max, g_cube_rotation, tmp_cube_min, tmp_cube_max, tmp_cube_rotation
+        g_show_render_boundary_control, g_enable_render_boundary_aabb, use_axis_for_rotation, g_cube_min, g_cube_max, g_cube_rotation, tmp_cube_min, tmp_cube_max, tmp_cube_rotation
         
     imgui.create_context()
     if args.hidpi:
@@ -188,196 +189,28 @@ def main():
         # imgui ui
         if imgui.begin_main_menu_bar():
             if imgui.begin_menu("Window", True):
-                clicked, g_show_control_win = imgui.menu_item(
-                    "Show Control", None, g_show_control_win
+                clicked, g_show_gs_elements_control = imgui.menu_item(
+                    "Show GS Elements Control", None, g_show_gs_elements_control
                 )
-                clicked, g_show_help_win = imgui.menu_item(
-                    "Show Help", None, g_show_help_win
+                clicked, g_show_render_boundary_control = imgui.menu_item(
+                    "Show Render Boundary", None, g_show_render_boundary_control
                 )
-                clicked, g_show_camera_win = imgui.menu_item(
-                    "Show Camera Control", None, g_show_camera_win
+                clicked, g_show_camera_control = imgui.menu_item(
+                    "Show Camera Control", None, g_show_camera_control
                 )
-                clicked, g_show_render_boundary = imgui.menu_item(
-                    "Show Render Boundary", None, g_show_render_boundary
+                clicked, g_show_help_control = imgui.menu_item(
+                    "Show Help", None, g_show_help_control
                 )
                 imgui.end_menu()
             imgui.end_main_menu_bar()
         
-        if g_show_control_win:
-            if imgui.begin("Control", True):
-                # rendering backend
-                changed, g_renderer_idx = imgui.combo("backend", g_renderer_idx, ["ogl", "cuda"][:len(g_renderer_list)])
-                if changed:
-                    g_renderer = g_renderer_list[g_renderer_idx]
-                    update_activated_renderer_state(gaussians)
+        if g_show_gs_elements_control:
+            g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, changed = gs_elements_control_ui(
+                window, g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, g_render_mode_tables
+            )
 
-                imgui.text(f"fps = {imgui.get_io().framerate:.1f}")
-
-                changed, g_renderer.reduce_updates = imgui.checkbox(
-                        "reduce updates", g_renderer.reduce_updates,
-                    )
-
-                imgui.text(f"# of Gaus = {len(gaussians)}")
-                if imgui.button(label='open ply'):
-                    file_path = filedialog.askopenfilename(title="open ply",
-                        initialdir="C:\\Users\\MSI_NB\\Downloads\\viewers",
-                        filetypes=[('ply file', '.ply')]
-                        )
-                    if file_path:
-                        try:
-                            gaussians = util_gau.load_ply(file_path)  # 移除缩放因子参数
-                            gaussians.scale_data(5.0)  # 应用缩放
-                            g_renderer.update_gaussian_data(gaussians)
-                            g_renderer.set_points_center(gaussians.points_center)
-                            g_renderer.sort_and_update(g_camera)
-                        except RuntimeError as e:
-                            pass
-                
-                # camera fov
-                changed, g_camera.fovy = imgui.slider_float(
-                    "fov", g_camera.fovy, 0.001, np.pi - 0.001, "fov = %.3f"
-                )
-                g_camera.is_intrin_dirty = changed
-                update_camera_intrin_lazy()
-
-                # 添加控制features_dc的滑动条
-                changed_dc_scale, new_dc_scale_factor = imgui.slider_float(
-                    "DC Scale", dc_scale_factor, 0.1, 2.0, "DC Scale Factor = %.2f")
-                imgui.same_line()
-                if imgui.button(label="Reset DC Scale"):
-                    new_dc_scale_factor = 1.
-                    changed_dc_scale = True
-                if changed_dc_scale:
-                    g_renderer.adjust_dc_features(new_dc_scale_factor)
-                    dc_scale_factor = new_dc_scale_factor
-
-                # 添加控制features_extra的滑动条
-                changed_extra_scale, new_extra_scale_factor = imgui.slider_float(
-                    "Extra Scale", extra_scale_factor, 0.1, 2.0, "Extra Scale Factor = %.2f")
-                imgui.same_line()
-                if imgui.button(label="Reset Extra Scale"):
-                    new_extra_scale_factor = 1.
-                    changed_extra_scale = True
-                if changed_extra_scale:
-                    g_renderer.adjust_extra_features(new_extra_scale_factor)
-                    extra_scale_factor = new_extra_scale_factor
-
-                # 在Control面板中添加滑动条，对rgb进行变化
-                changed_red, g_rgb_factor[0] = imgui.slider_float(
-                    "Red", g_rgb_factor[0], 0.00, 2.0, "%.4f")
-                imgui.same_line()
-                if imgui.button(label="Reset Red"):
-                    g_rgb_factor[0] = 1.
-                    changed_red = True
-                changed_green, g_rgb_factor[1] = imgui.slider_float(
-                    "Green", g_rgb_factor[1], 0.00, 2.0, "%.4f")
-                imgui.same_line()
-                if imgui.button(label="Reset Green"):
-                    g_rgb_factor[1] = 1.
-                    changed_green = True
-                changed_blue, g_rgb_factor[2] = imgui.slider_float(
-                    "Blue", g_rgb_factor[2], 0.00, 2.0, "%.4f")
-                imgui.same_line()
-                if imgui.button(label="Reset Blue"):
-                    g_rgb_factor[2] = 1.
-                    changed_blue = True
-                if changed_red or changed_green or changed_blue:
-                    # 当任何一个颜色滑动条的值改变时，更新渲染器中的颜色
-                    g_renderer.update_color_factor(g_rgb_factor)
-                
-                # scale modifier
-                changed_scale, g_scale_modifier = imgui.slider_float(
-                    "scale", g_scale_modifier, 0.1, 10, "scale modifier = %.3f"
-                )
-                imgui.same_line()
-                if imgui.button(label="Reset scale"):
-                    g_scale_modifier = 1.
-                    changed_scale = True
-                    
-                if changed_scale:
-                    g_renderer.set_scale_modifier(g_scale_modifier)
-                
-                # 在ImGui的控制面板中添加旋转控制的滑动条
-                changed_x, g_rot_modifier[0] = imgui.slider_float("Rot X°", g_rot_modifier[0], -180.0, 180.0, "%.1f")
-                imgui.same_line()
-                if imgui.button("Reset X"):
-                    g_rot_modifier[0] = 0.0
-                    changed_x = True
-                changed_y, g_rot_modifier[1] = imgui.slider_float("Rot Y°", g_rot_modifier[1], -180.0, 180.0, "%.1f")
-                imgui.same_line()
-                if imgui.button("Reset Y"):
-                    g_rot_modifier[1] = 0.0
-                    changed_y = True
-                changed_z, g_rot_modifier[2] = imgui.slider_float("Rot Z°", g_rot_modifier[2], -180.0, 180.0, "%.1f")
-                imgui.same_line()
-                if imgui.button("Reset Z"):
-                    g_rot_modifier[2] = 0.0
-                    changed_z = True
-                # 当旋转滑动条的值改变时，或者任何一个轴的重置按钮被点击时
-                if changed_x or changed_y or changed_z:
-                    g_renderer.set_rot_modifier(g_rot_modifier)
-                
-                # 添加控制光照旋转的滑动条
-                changed_x, g_light_rotation[0] = imgui.slider_float("Light Rot X°", g_light_rotation[0], -180.0, 180.0, "%.1f")
-                imgui.same_line()
-                if imgui.button("Reset Light X"):
-                    g_light_rotation[0] = 0.0
-                    changed_x = True
-                changed_y, g_light_rotation[1] = imgui.slider_float("Light Rot Y°", g_light_rotation[1], -180.0, 180.0, "%.1f")
-                imgui.same_line()
-                if imgui.button("Reset Light Y"):
-                    g_light_rotation[1] = 0.0
-                    changed_y = True
-                changed_z, g_light_rotation[2] = imgui.slider_float("Light Rot Z°", g_light_rotation[2], -180.0, 180.0, "%.1f")
-                imgui.same_line()
-                if imgui.button("Reset Light Z"):
-                    g_light_rotation[2] = 0.0
-                    changed_z = True
-                if changed_x or changed_y or changed_z:
-                    # 当任何一个轴的旋转角度改变时，更新渲染器中的光照旋转
-                    g_renderer.set_light_rotation(g_light_rotation)
-                
-                # render mode
-                changed, g_render_mode = imgui.combo("shading", g_render_mode, g_render_mode_tables)
-                if changed:
-                    g_renderer.set_render_mod(g_render_mode - 6)
-                
-                # sort button
-                if imgui.button(label='sort Gaussians'):
-                    g_renderer.sort_and_update(g_camera)
-                imgui.same_line()
-                changed, g_auto_sort = imgui.checkbox(
-                        "auto sort", g_auto_sort,
-                    )
-                if g_auto_sort:
-                    g_renderer.sort_and_update(g_camera)
-                
-                if imgui.button(label='save image'):
-                    width, height = glfw.get_framebuffer_size(window)
-                    nrChannels = 3
-                    stride = nrChannels * width
-                    stride += (4 - stride % 4) if stride % 4 else 0
-                    gl.glPixelStorei(gl.GL_PACK_ALIGNMENT, 4)
-                    gl.glReadBuffer(gl.GL_FRONT)
-                    bufferdata = gl.glReadPixels(0, 0, width, height, gl.GL_RGB, gl.GL_UNSIGNED_BYTE)
-                    img = np.frombuffer(bufferdata, np.uint8, -1).reshape(height, width, 3)
-                    imageio.imwrite("save.png", img[::-1])
-                    # save intermediate information
-                    # np.savez(
-                    #     "save.npz",
-                    #     gau_xyz=gaussians.xyz,
-                    #     gau_s=gaussians.scale,
-                    #     gau_rot=gaussians.rot,
-                    #     gau_c=gaussians.sh,
-                    #     gau_a=gaussians.opacity,
-                    #     viewmat=g_camera.get_view_matrix(),
-                    #     projmat=g_camera.get_project_matrix(),
-                    #     hfovxyfocal=g_camera.get_htanfovxy_focal()
-                    # )
-                imgui.end()
-        
         # Add the following code in the main function or appropriate GUI rendering section
-        if g_show_render_boundary:
+        if g_show_render_boundary_control:
             if imgui.begin("3DGS Render Boundary", True):
                 # Add a checkbox to control the enabling of render boundaries for AABB
                 changed_aabb, new_enable_aabb = imgui.checkbox("Enable Render Boundary AABB", g_enable_render_boundary_aabb == 1)
@@ -544,10 +377,10 @@ def main():
                 imgui.end()
 
         # 相机控制（包括相机旋转、平移、缩放）
-        camera_control_ui(g_camera, g_show_camera_win)
+        camera_control_ui(g_camera, g_show_camera_control)
 
         # 帮助内容
-        help_window_ui(g_show_help_win)
+        help_window_ui(g_show_help_control)
         
         imgui.render()
         impl.render(imgui.get_draw_data())

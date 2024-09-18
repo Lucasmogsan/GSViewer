@@ -32,7 +32,7 @@ class Camera:
         self.trans_sensitivity = 0.01
         self.zoom_sensitivity = 0.08
         self.roll_sensitivity = 0.03
-        self.target_dist = 3.
+        self.target_dist = 3.0
     
     def _global_rot_mat(self):
         x = np.array([1, 0, 0])
@@ -130,6 +130,7 @@ class Camera:
         _dir = self.target - self.position
         _dir = _dir / np.linalg.norm(_dir)
         self.target = self.position + _dir * self.target_dist
+        self.is_pose_dirty = True
         
     def update_resolution(self, height, width):
         self.h = max(height, 1)

@@ -1,7 +1,7 @@
 import imgui
 
-def help_window_ui(g_show_help_win):
-    if g_show_help_win:
+def help_window_ui(g_show_help_control):
+    if g_show_help_control:
         if imgui.begin("Help", True):
             imgui.text("Open Gaussian Splatting PLY file \n  by click 'open ply' button")
             imgui.text("Use left click & move to rotate camera")
