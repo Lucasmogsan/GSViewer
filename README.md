@@ -4,6 +4,8 @@ This is a simple Gaussian Splatting Viewer built with PyOpenGL / CUDARasterizer.
 
 ## News
 
+- 2024/09/19: Adding trackball rotation (free rotation) and using quaternions and rotation matrices to calculate the direction vector can avoid the gimbal lock problem that occurs with Euler angles in some cases.
+  
 - 2024/08/28: Optimize the calculation speed required to derive Gaussian elements and solve the rot update bug.
   
 - 2024/08/15: Added export based on bounding box range
