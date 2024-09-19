@@ -12,54 +12,66 @@ class Camera:
         self.h = h
         self.w = w
         self.fovy = np.pi / 2
-        self.position = np.array([0.0, 0.0, 3.0]).astype(np.float32)
-        self.target = np.array([0.0, 0.0, 0.0]).astype(np.float32)
-        self.up = np.array([0.0, -1.0, 0.0]).astype(np.float32)
+        self.position = np.array([0.0, 0.0, 3.0], dtype=np.float32)
+        self.target = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+        self.up = np.array([0.0, -1.0, 0.0], dtype=np.float32)
         self.yaw = -np.pi / 2
         self.pitch = 0
-        
+        self.roll = 0
+
         self.is_pose_dirty = True
         self.is_intrin_dirty = True
-        
+
         self.last_x = 640
         self.last_y = 360
         self.first_mouse = True
-        
+
         self.is_leftmouse_pressed = False
         self.is_rightmouse_pressed = False
-        
-        self.rot_sensitivity = 0.02
-        self.trans_sensitivity = 0.01
-        self.zoom_sensitivity = 0.08
-        self.roll_sensitivity = 0.03
+
+        self.sensitivities = {
+            'rot': 0.02,
+            'trans': 0.01,
+            'zoom': 0.08,
+            'roll': 0.03
+        }
         self.target_dist = 3.0
-    
+
+        self.rotation = glm.quat(1, 0, 0, 0)  # 初始化为单位四元数
+        self.use_free_rotation = True  # 添加自由旋转属性
+
     def _global_rot_mat(self):
         x = np.array([1, 0, 0])
         z = np.cross(x, self.up)
         z = z / np.linalg.norm(z)
         x = np.cross(self.up, z)
         return np.stack([x, self.up, z], axis=-1)
+    
+    def set_use_free_rotation(self, use_free_rotation):
+        self.use_free_rotation = use_free_rotation
+        if use_free_rotation:
+            self.rotation = glm.quat(glm.vec3(self.pitch, self.yaw, self.roll))  # 将当前欧拉角转换为四元数
+        self.is_pose_dirty = True
 
     def get_view_matrix(self):
-        return np.array(glm.lookAt(self.position, self.target, self.up))
+        if self.use_free_rotation:
+            rotation_matrix = glm.mat4_cast(self.rotation)
+            direction = glm.vec3(rotation_matrix * glm.vec4(0, 0, -1, 0))
+            up_direction = glm.vec3(rotation_matrix * glm.vec4(0, 1, 0, 0))
+            self.position = self.target - direction * self.target_dist
+            view_matrix = np.array(glm.lookAt(self.position, self.target, up_direction))
+        else:
+            view_matrix = np.array(glm.lookAt(self.position, self.target, self.up))
+        return view_matrix
 
     def get_project_matrix(self):
-        # htanx, htany, focal = self.get_htanfovxy_focal()
-        # f_n = self.zfar - self.znear
-        # proj_mat = np.array([
-        #     1 / htanx, 0, 0, 0,
-        #     0, 1 / htany, 0, 0,
-        #     0, 0, self.zfar / f_n, - 2 * self.zfar * self.znear / f_n,
-        #     0, 0, 1, 0
-        # ])
         project_mat = glm.perspective(
             self.fovy,
             self.w / self.h,
             self.znear,
             self.zfar
         )
-        return np.array(project_mat).astype(np.float32)
+        return np.array(project_mat, dtype=np.float32)
 
     def get_htanfovxy_focal(self):
         htany = np.tan(self.fovy / 2)
@@ -82,48 +94,70 @@ class Camera:
         self.last_y = ypos
 
         if self.is_leftmouse_pressed:
-            self.yaw += xoffset * self.rot_sensitivity
-            self.pitch += yoffset * self.rot_sensitivity
-
-            self.pitch = np.clip(self.pitch, -np.pi / 2, np.pi / 2)
-
-            front = np.array([np.cos(self.yaw) * np.cos(self.pitch), 
-                            np.sin(self.pitch), np.sin(self.yaw) * 
-                            np.cos(self.pitch)])
-            front = self._global_rot_mat() @ front.reshape(3, 1)
-            front = front[:, 0]
-            self.position[:] = - front * np.linalg.norm(self.position - self.target) + self.target
+            if self.use_free_rotation:
+                yaw_quat = glm.angleAxis(glm.radians(xoffset * self.sensitivities['rot'] * 20), glm.vec3(0, 1, 0))
+                pitch_quat = glm.angleAxis(glm.radians(yoffset * self.sensitivities['rot'] * 20), glm.vec3(1, 0, 0))
+                roll_quat = glm.angleAxis(glm.radians(self.roll), glm.vec3(0, 0, 1))  # 处理 roll 角度
+                self.rotation = glm.normalize(yaw_quat * self.rotation * pitch_quat * roll_quat)
+            else:
+                self.yaw += xoffset * self.sensitivities['rot']
+                self.pitch += yoffset * self.sensitivities['rot']
+                self.pitch = np.clip(self.pitch, -np.pi / 2, np.pi / 2)
+                front = np.array([np.cos(self.yaw) * np.cos(self.pitch), 
+                                np.sin(self.pitch), np.sin(self.yaw) * 
+                                np.cos(self.pitch)])
+                front = self._global_rot_mat() @ front.reshape(3, 1)
+                front = front[:, 0]
+                self.position[:] = - front * np.linalg.norm(self.position - self.target) + self.target
             
             self.is_pose_dirty = True
-        
+
         if self.is_rightmouse_pressed:
-            front = self.target - self.position
-            front = front / np.linalg.norm(front)
-            right = np.cross(self.up, front)
-            self.position += right * xoffset * self.trans_sensitivity
-            self.target += right * xoffset * self.trans_sensitivity
-            cam_up = np.cross(right, front)
-            self.position += cam_up * yoffset * self.trans_sensitivity
-            self.target += cam_up * yoffset * self.trans_sensitivity
-            
-            self.is_pose_dirty = True
-        
+            if self.use_free_rotation:
+                # 使用旋转矩阵计算方向向量
+                rotation_matrix = glm.mat4_cast(self.rotation)
+                front = glm.vec3(rotation_matrix * glm.vec4(0, 0, -1, 0))
+                right = glm.vec3(rotation_matrix * glm.vec4(1, 0, 0, 0))
+                cam_up = glm.vec3(rotation_matrix * glm.vec4(0, 1, 0, 0))
+
+                self.position -= right * xoffset * self.sensitivities['trans']
+                self.target -= right * xoffset * self.sensitivities['trans']
+                self.position -= cam_up * yoffset * self.sensitivities['trans']
+                self.target -= cam_up * yoffset * self.sensitivities['trans']
+
+                self.is_pose_dirty = True
+            else:
+                front = self.target - self.position
+                front = front / np.linalg.norm(front)
+                right = np.cross(self.up, front)
+                self.position += right * xoffset * self.sensitivities['trans']
+                self.target += right * xoffset * self.sensitivities['trans']
+                cam_up = np.cross(right, front)
+                self.position += cam_up * yoffset * self.sensitivities['trans']
+                self.target += cam_up * yoffset * self.sensitivities['trans']
+                
+                self.is_pose_dirty = True
+
     def process_wheel(self, dx, dy):
         front = self.target - self.position
         front = front / np.linalg.norm(front)
-        self.position += front * dy * self.zoom_sensitivity
-        self.target += front * dy * self.zoom_sensitivity
+        self.position += front * dy * self.sensitivities['zoom']
+        self.target += front * dy * self.sensitivities['zoom']
         self.is_pose_dirty = True
-        
+
     def process_roll_key(self, d):
         front = self.target - self.position
         right = np.cross(front, self.up)
-        new_up = self.up + right * (d * self.roll_sensitivity / np.linalg.norm(right))
+        new_up = self.up + right * (d * self.sensitivities['roll'] / np.linalg.norm(right))
         self.up = new_up / np.linalg.norm(new_up)
         self.is_pose_dirty = True
 
     def flip_ground(self):
-        self.up = -self.up
+        if self.use_free_rotation:
+            flip_quat = glm.angleAxis(glm.radians(180), glm.vec3(0, 0, 1))
+            self.rotation = glm.normalize(flip_quat * self.rotation)
+        else:
+            self.up = -self.up
         self.is_pose_dirty = True
 
     def update_target_distance(self):
@@ -131,12 +165,11 @@ class Camera:
         _dir = _dir / np.linalg.norm(_dir)
         self.target = self.position + _dir * self.target_dist
         self.is_pose_dirty = True
-        
+
     def update_resolution(self, height, width):
         self.h = max(height, 1)
         self.w = max(width, 1)
         self.is_intrin_dirty = True
-
 
 def load_shaders(vs, fs):
     with open(vs, 'r', encoding='utf-8') as v_shader_file:
