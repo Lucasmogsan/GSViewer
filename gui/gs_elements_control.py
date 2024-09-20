@@ -6,7 +6,7 @@ import OpenGL.GL as gl
 import imageio
 import numpy as np
 
-def gs_elements_control_ui(window, g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, g_render_mode_tables):
+def gs_elements_control_ui(window, g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, g_render_mode_tables, show_axes):
     changed = False
 
     if imgui.begin("Control", True):
@@ -21,8 +21,13 @@ def gs_elements_control_ui(window, g_renderer, gaussians, g_camera, dc_scale_fac
         changed_reduce_updates, g_renderer.reduce_updates = imgui.checkbox(
                 "reduce updates", g_renderer.reduce_updates,
             )
+        
+        # 添加控制draw_axes的勾选框
+        changed_show_axes, show_axes = imgui.checkbox("show axes", show_axes)
+        if changed_show_axes:
+            g_renderer.show_axes = show_axes
 
-        imgui.text(f"# of Gaus = {len(gaussians)}")
+        imgui.text(f"Gaus number = {len(gaussians)}")
         if imgui.button(label='open ply'):
             file_path = filedialog.askopenfilename(title="open ply",
                 initialdir="C:\\Users\\MSI_NB\\Downloads\\viewers",
@@ -34,7 +39,7 @@ def gs_elements_control_ui(window, g_renderer, gaussians, g_camera, dc_scale_fac
                     gaussians.scale_data(5.0)  # 应用缩放
                     g_renderer.update_gaussian_data(gaussians)
                     g_renderer.set_points_center(gaussians.points_center)
-                    g_renderer.sort_and_update(g_camera)
+                    g_renderer.sort_and_update()
                 except RuntimeError as e:
                     pass
 
@@ -142,13 +147,13 @@ def gs_elements_control_ui(window, g_renderer, gaussians, g_camera, dc_scale_fac
 
         # sort button
         if imgui.button(label='sort Gaussians'):
-            g_renderer.sort_and_update(g_camera)
+            g_renderer.sort_and_update()
         imgui.same_line()
         changed_auto_sort, g_auto_sort = imgui.checkbox(
                 "auto sort", g_auto_sort,
             )
         if g_auto_sort:
-            g_renderer.sort_and_update(g_camera)
+            g_renderer.sort_and_update()
 
         if imgui.button(label='save image'):
             width, height = glfw.get_framebuffer_size(window)
@@ -174,4 +179,4 @@ def gs_elements_control_ui(window, g_renderer, gaussians, g_camera, dc_scale_fac
             # )
         imgui.end()
 
-    return g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, changed
+    return g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, changed, show_axes

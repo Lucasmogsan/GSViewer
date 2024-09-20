@@ -9,6 +9,12 @@ def camera_control_ui(g_camera, g_show_camera_control):
 
             changed, g_camera.use_free_rotation = imgui.checkbox("Use Free Rotation", g_camera.use_free_rotation)
 
+            changed, g_camera.use_custom_rotation_center = imgui.checkbox("Use Custom Rotation Center", g_camera.use_custom_rotation_center)
+            if g_camera.use_custom_rotation_center:
+                changed, g_camera.rotation_center[0] = imgui.input_float("Rotation Center X", g_camera.rotation_center[0])
+                changed, g_camera.rotation_center[1] = imgui.input_float("Rotation Center Y", g_camera.rotation_center[1])
+                changed, g_camera.rotation_center[2] = imgui.input_float("Rotation Center Z", g_camera.rotation_center[2])
+
             changed, g_camera.fovy = imgui.slider_float(
                 "fov", g_camera.fovy, 0.001, np.pi - 0.001, "fov = %.3f"
             )
@@ -44,11 +50,11 @@ def camera_control_ui(g_camera, g_show_camera_control):
                 g_camera.sensitivities['trans'] = 0.01
 
             changed, g_camera.sensitivities['zoom'] = imgui.slider_float(
-                    "z", g_camera.sensitivities['zoom'], 0.001, 0.05, "zoom speed = %.3f"
+                    "z", g_camera.sensitivities['zoom'], 0.001, 1.0, "zoom speed = %.3f"
                 )
             imgui.same_line()
             if imgui.button(label="Reset z"):
-                g_camera.sensitivities['zoom'] = 0.01
+                g_camera.sensitivities['zoom'] = 0.08
 
             changed, g_camera.sensitivities['roll'] = imgui.slider_float(
                     "ro", g_camera.sensitivities['roll'], 0.003, 0.1, "roll speed = %.3f"

@@ -59,6 +59,8 @@ g_rgb_factor = [1.0, 1.0, 1.0]# 在rgb全局变量区域添加
 g_rot_modifier = [0.0, 0.0, 0.0] #设置一个旋转修正因子，默认是1。
 g_light_rotation = [0.0, 0.0, 0.0]  # 光照旋转角度，初始化为0
 
+show_axes = True  # 初始化show_axes变量
+
 def impl_glfw_init():
     window_name = "GSViewer"
 
@@ -111,22 +113,22 @@ def key_callback(window, key, scancode, action, mods):
 
 def update_camera_pose_lazy():
     if g_camera.is_pose_dirty:
-        g_renderer.update_camera_pose(g_camera)
+        g_renderer.update_camera_pose()
         g_camera.is_pose_dirty = False
 
 def update_camera_intrin_lazy():
     if g_camera.is_intrin_dirty:
-        g_renderer.update_camera_intrin(g_camera)
+        g_renderer.update_camera_intrin()
         g_camera.is_intrin_dirty = False
 
 def update_activated_renderer_state(gaus: util_gau.GaussianData):
     g_renderer.update_gaussian_data(gaus)
-    g_renderer.sort_and_update(g_camera)
+    g_renderer.sort_and_update()
     g_renderer.set_scale_modifier(g_scale_modifier)
     g_renderer.set_rot_modifier(g_rot_modifier)
     g_renderer.set_render_mod(g_render_mode - 3)
-    g_renderer.update_camera_pose(g_camera)
-    g_renderer.update_camera_intrin(g_camera)
+    g_renderer.update_camera_pose()
+    g_renderer.update_camera_intrin()
     g_renderer.set_render_reso(g_camera.w, g_camera.h)
 
 def window_resize_callback(window, width, height):
@@ -139,7 +141,8 @@ def main():
         g_show_gs_elements_control, g_show_help_control, g_show_camera_control, \
         g_render_mode, g_render_mode_tables, \
         dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, \
-        g_show_render_boundary_control, g_enable_render_boundary_aabb, use_axis_for_rotation, g_cube_min, g_cube_max, g_cube_rotation, tmp_cube_min, tmp_cube_max, tmp_cube_rotation
+        g_show_render_boundary_control, g_enable_render_boundary_aabb, use_axis_for_rotation, g_cube_min, g_cube_max, g_cube_rotation, tmp_cube_min, tmp_cube_max, tmp_cube_rotation, \
+        show_axes
         
     imgui.create_context()
     if args.hidpi:
@@ -157,7 +160,7 @@ def main():
     glfw.set_window_size_callback(window, window_resize_callback)
 
     # init renderer
-    g_renderer_list[BACKEND_OGL] = OpenGLRenderer(g_camera.w, g_camera.h)
+    g_renderer_list[BACKEND_OGL] = OpenGLRenderer(g_camera.w, g_camera.h, g_camera)
     try:
         from renderer_cuda import CUDARenderer
         g_renderer_list += [CUDARenderer(g_camera.w, g_camera.h)]
@@ -205,8 +208,8 @@ def main():
             imgui.end_main_menu_bar()
         
         if g_show_gs_elements_control:
-            g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, changed = gs_elements_control_ui(
-                window, g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, g_render_mode_tables
+            g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, changed, show_axes = gs_elements_control_ui(
+                window, g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, g_render_mode_tables, show_axes
             )
 
         # Add the following code in the main function or appropriate GUI rendering section
@@ -335,7 +338,7 @@ def main():
                     
                     # 绘制边界框
                     if g_enable_render_boundary_aabb:
-                        g_renderer.draw_boundary_box(gaussians.points_center, g_cube_min, g_cube_max, g_cube_rotation, g_camera)
+                        g_renderer.draw_boundary_box(gaussians.points_center, g_cube_min, g_cube_max, g_cube_rotation)
 
                 # 如果AABB启用，则显示导出按钮和路径选择
                 if g_enable_render_boundary_aabb:
@@ -388,7 +391,6 @@ def main():
 
     impl.shutdown()
     glfw.terminate()
-
 
 if __name__ == "__main__":
     global args

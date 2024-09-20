@@ -39,6 +39,9 @@ class Camera:
 
         self.rotation = glm.quat(1, 0, 0, 0)  # 初始化为单位四元数
         self.use_free_rotation = True  # 添加自由旋转属性
+        self.rotation_center = np.array([0.0, 0.0, 0.0], dtype=np.float32)  # 添加旋转中心属性
+        self.use_custom_rotation_center = False  # 添加是否使用自定义旋转中心的标志
+
 
     def _global_rot_mat(self):
         x = np.array([1, 0, 0])
@@ -58,10 +61,16 @@ class Camera:
             rotation_matrix = glm.mat4_cast(self.rotation)
             direction = glm.vec3(rotation_matrix * glm.vec4(0, 0, -1, 0))
             up_direction = glm.vec3(rotation_matrix * glm.vec4(0, 1, 0, 0))
-            self.position = self.target - direction * self.target_dist
+            if self.use_custom_rotation_center:
+                self.position = self.rotation_center - direction * self.target_dist
+            else:
+                self.position = self.target - direction * self.target_dist
             view_matrix = np.array(glm.lookAt(self.position, self.target, up_direction))
         else:
-            view_matrix = np.array(glm.lookAt(self.position, self.target, self.up))
+            position = glm.vec3(self.position)
+            target = glm.vec3(self.target)
+            up = glm.vec3(self.up)
+            view_matrix = np.array(glm.lookAt(position, target, up))
         return view_matrix
 
     def get_project_matrix(self):
@@ -73,14 +82,9 @@ class Camera:
         )
         return np.array(project_mat, dtype=np.float32)
 
-    def get_htanfovxy_focal(self):
-        htany = np.tan(self.fovy / 2)
-        htanx = htany / self.h * self.w
-        focal = self.h / (2 * htany)
-        return [htanx, htany, focal]
-
-    def get_focal(self):
-        return self.h / (2 * np.tan(self.fovy / 2))
+    def get_rotation_matrix(self):
+        rotation_matrix = glm.mat4_cast(self.rotation)
+        return np.array(rotation_matrix)[:3, :3]
 
     def process_mouse(self, xpos, ypos):
         if self.first_mouse:
@@ -99,6 +103,8 @@ class Camera:
                 pitch_quat = glm.angleAxis(glm.radians(yoffset * self.sensitivities['rot'] * 20), glm.vec3(1, 0, 0))
                 roll_quat = glm.angleAxis(glm.radians(self.roll), glm.vec3(0, 0, 1))  # 处理 roll 角度
                 self.rotation = glm.normalize(yaw_quat * self.rotation * pitch_quat * roll_quat)
+                if self.use_custom_rotation_center:
+                    self.position = self.rotation_center - glm.vec3(glm.mat4_cast(self.rotation) * glm.vec4(0, 0, self.target_dist, 0))
             else:
                 self.yaw += xoffset * self.sensitivities['rot']
                 self.pitch += yoffset * self.sensitivities['rot']
@@ -108,8 +114,10 @@ class Camera:
                                 np.cos(self.pitch)])
                 front = self._global_rot_mat() @ front.reshape(3, 1)
                 front = front[:, 0]
-                self.position[:] = - front * np.linalg.norm(self.position - self.target) + self.target
-            
+                if self.use_custom_rotation_center:
+                    self.position = self.rotation_center - front * np.linalg.norm(self.position - self.rotation_center)
+                else:
+                    self.position[:] = - front * np.linalg.norm(self.position - self.target) + self.target
             self.is_pose_dirty = True
 
         if self.is_rightmouse_pressed:
@@ -130,20 +138,39 @@ class Camera:
                 front = self.target - self.position
                 front = front / np.linalg.norm(front)
                 right = np.cross(self.up, front)
-                self.position += right * xoffset * self.sensitivities['trans']
-                self.target += right * xoffset * self.sensitivities['trans']
-                cam_up = np.cross(right, front)
-                self.position += cam_up * yoffset * self.sensitivities['trans']
-                self.target += cam_up * yoffset * self.sensitivities['trans']
-                
+                if self.use_custom_rotation_center:
+                    self.position += right * xoffset * self.sensitivities['trans']
+                    self.rotation_center += right * xoffset * self.sensitivities['trans']
+                    cam_up = np.cross(right, front)
+                    self.position += cam_up * yoffset * self.sensitivities['trans']
+                    self.rotation_center += cam_up * yoffset * self.sensitivities['trans']
+                else:
+                    self.position += right * xoffset * self.sensitivities['trans']
+                    self.target += right * xoffset * self.sensitivities['trans']
+                    cam_up = np.cross(right, front)
+                    self.position += cam_up * yoffset * self.sensitivities['trans']
+                    self.target += cam_up * yoffset * self.sensitivities['trans']
                 self.is_pose_dirty = True
 
     def process_wheel(self, dx, dy):
         front = self.target - self.position
         front = front / np.linalg.norm(front)
-        self.position += front * dy * self.sensitivities['zoom']
-        self.target += front * dy * self.sensitivities['zoom']
+        if self.use_custom_rotation_center:
+            self.position += front * dy * self.sensitivities['zoom']
+            self.rotation_center += front * dy * self.sensitivities['zoom']
+        else:
+            self.position += front * dy * self.sensitivities['zoom']
+            self.target += front * dy * self.sensitivities['zoom']
         self.is_pose_dirty = True
+
+    def get_htanfovxy_focal(self):
+        htany = np.tan(self.fovy / 2)
+        htanx = htany / self.h * self.w
+        focal = self.h / (2 * htany)
+        return [htanx, htany, focal]
+
+    def get_focal(self):
+        return self.h / (2 * np.tan(self.fovy / 2))
 
     def process_roll_key(self, d):
         front = self.target - self.position
