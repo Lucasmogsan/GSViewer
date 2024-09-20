@@ -173,10 +173,14 @@ class Camera:
         return self.h / (2 * np.tan(self.fovy / 2))
 
     def process_roll_key(self, d):
-        front = self.target - self.position
-        right = np.cross(front, self.up)
-        new_up = self.up + right * (d * self.sensitivities['roll'] / np.linalg.norm(right))
-        self.up = new_up / np.linalg.norm(new_up)
+        if self.use_free_rotation:
+            roll_quat = glm.angleAxis(glm.radians(d * self.sensitivities['roll'] * 20), glm.vec3(0, 0, 1))
+            self.rotation = glm.normalize(self.rotation * roll_quat)
+        else:
+            front = self.target - self.position
+            right = np.cross(front, self.up)
+            new_up = self.up + right * (d * self.sensitivities['roll'] / np.linalg.norm(right))
+            self.up = new_up / np.linalg.norm(new_up)
         self.is_pose_dirty = True
 
     def flip_ground(self):
