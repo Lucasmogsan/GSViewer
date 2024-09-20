@@ -11,7 +11,7 @@ from tkinter import filedialog
 import os
 import sys
 import argparse
-from renderer_ogl import OpenGLRenderer, GaussianRenderBase
+from render.renderer_ogl import OpenGLRenderer, GaussianRenderBase
 from gui.camera_control import camera_control_ui
 from gui.gs_elements_control import gs_elements_control_ui
 from gui.help_content import help_window_ui
@@ -33,7 +33,7 @@ g_renderer_list = [
 ]
 g_renderer_idx = BACKEND_OGL
 g_renderer: GaussianRenderBase = g_renderer_list[g_renderer_idx]
-g_scale_modifier = 1.
+g_scale_modifier = 1.0
 g_auto_sort = False
 g_show_gs_elements_control = True
 g_show_help_control = False
@@ -43,7 +43,7 @@ g_render_mode = 9
 
 
 # Initialize rendering boundary related variables
-g_show_render_boundary_control = True
+g_show_render_boundary_control = False
 use_axis_for_rotation = False 
 g_enable_render_boundary_aabb = 0
 g_cube_rotation = [0.0, 0.0, 0.0]
@@ -162,7 +162,7 @@ def main():
     # init renderer
     g_renderer_list[BACKEND_OGL] = OpenGLRenderer(g_camera.w, g_camera.h, g_camera)
     try:
-        from renderer_cuda import CUDARenderer
+        from render.renderer_cuda import CUDARenderer
         g_renderer_list += [CUDARenderer(g_camera.w, g_camera.h)]
     except ImportError:
         g_renderer_idx = BACKEND_OGL
@@ -215,6 +215,7 @@ def main():
         # Add the following code in the main function or appropriate GUI rendering section
         if g_show_render_boundary_control:
             if imgui.begin("3DGS Render Boundary", True):
+                imgui.push_item_width(150)  # 设置滑动条宽度
                 # Add a checkbox to control the enabling of render boundaries for AABB
                 changed_aabb, new_enable_aabb = imgui.checkbox("Enable Render Boundary AABB", g_enable_render_boundary_aabb == 1)
                 if changed_aabb:
@@ -245,7 +246,7 @@ def main():
 
                 # Only show "Use Axis for Rotation" checkbox if AABB is enabled
                 if g_enable_render_boundary_aabb:
-                    imgui.same_line()
+                    # imgui.same_line()
                     changed_use_axis, use_axis_for_rotation = imgui.checkbox("Toggle OBB Rotation", use_axis_for_rotation)
                     if changed_use_axis:
                         if use_axis_for_rotation:
@@ -377,6 +378,7 @@ def main():
                     export_path = ""  # 确保当AABB未启用时清空路径
                     export_status = "Please select export file path"  # 重置状态为默认文本
 
+                imgui.pop_item_width()  # 恢复滑动条默认宽度
                 imgui.end()
 
         # 相机控制（包括相机旋转、平移、缩放）

@@ -12,7 +12,7 @@ class Camera:
         self.h = h
         self.w = w
         self.fovy = np.pi / 2
-        self.position = np.array([0.0, 0.0, 3.0], dtype=np.float32)
+        self.position = np.array([0.0, 0.0, 5.0], dtype=np.float32)
         self.target = np.array([0.0, 0.0, 0.0], dtype=np.float32)
         self.up = np.array([0.0, -1.0, 0.0], dtype=np.float32)
         self.yaw = -np.pi / 2
@@ -31,11 +31,11 @@ class Camera:
 
         self.sensitivities = {
             'rot': 0.02,
-            'trans': 0.01,
+            'trans': 0.005,
             'zoom': 0.08,
             'roll': 0.03
         }
-        self.target_dist = 3.0
+        self.target_dist = 5.0
 
         self.rotation = glm.quat(1, 0, 0, 0)  # 初始化为单位四元数
         self.use_free_rotation = True  # 添加自由旋转属性
