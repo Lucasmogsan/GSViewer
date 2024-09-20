@@ -2,7 +2,8 @@
 
 ![teaser](./assets/teaser.png)
 
-![image-20240920203953569](./assets/Building_Scene.png)
+![Building_Scene](./assets/Building_Scene.png)
+
 This is a simple Gaussian Splatting Viewer built with PyOpenGL / CUDARasterizer. It's easy to install with minimum dependencies. The goal of this project is to provide a minimum example of the viewer for research and study purpose. 
 
 ## News
