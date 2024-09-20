@@ -18,11 +18,11 @@ from gui.help_content import help_window_ui
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-# Add the directory containing main.py to the Python path
+# 将包含main.py的目录添加到Python路径中
 dir_path = os.path.dirname(os.path.realpath(__file__))
 sys.path.append(dir_path)
 
-# Change the current working directory to the script's directory
+# 将当前工作目录更改为脚本的目录
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 g_camera = util.Camera(720, 1280)
@@ -42,7 +42,7 @@ g_render_mode_tables = ["Gaussian Ball", "Flat Ball", "Billboard", "Depth", "Nor
 g_render_mode = 9
 
 
-# Initialize rendering boundary related variables
+# 初始化渲染包围盒边界相关变量
 g_show_render_boundary_control = False
 use_axis_for_rotation = False 
 g_enable_render_boundary_aabb = 0
