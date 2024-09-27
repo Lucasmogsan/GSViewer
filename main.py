@@ -34,6 +34,7 @@ g_renderer_list = [
 g_renderer_idx = BACKEND_OGL
 g_renderer: GaussianRenderBase = g_renderer_list[g_renderer_idx]
 g_scale_modifier = 1.0
+g_screen_scale_factor = 1.0
 g_auto_sort = False
 g_show_gs_elements_control = True
 g_show_help_control = False
@@ -125,6 +126,7 @@ def update_activated_renderer_state(gaus: util_gau.GaussianData):
     g_renderer.update_gaussian_data(gaus)
     g_renderer.sort_and_update()
     g_renderer.set_scale_modifier(g_scale_modifier)
+    g_renderer.set_screen_scale_factor(g_screen_scale_factor)
     g_renderer.set_rot_modifier(g_rot_modifier)
     g_renderer.set_render_mod(g_render_mode - 3)
     g_renderer.update_camera_pose()
@@ -137,7 +139,7 @@ def window_resize_callback(window, width, height):
     g_renderer.set_render_reso(width, height)
 
 def main():
-    global g_camera, g_renderer, g_renderer_list, g_renderer_idx, g_scale_modifier, g_auto_sort, \
+    global g_camera, g_renderer, g_renderer_list, g_renderer_idx, g_scale_modifier, g_screen_scale_factor, g_auto_sort, \
         g_show_gs_elements_control, g_show_help_control, g_show_camera_control, \
         g_render_mode, g_render_mode_tables, \
         dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, \
@@ -208,8 +210,8 @@ def main():
             imgui.end_main_menu_bar()
         
         if g_show_gs_elements_control:
-            g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, changed, show_axes = gs_elements_control_ui(
-                window, g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, g_render_mode_tables, show_axes
+            g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_screen_scale_factor, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, changed, show_axes = gs_elements_control_ui(
+                window, g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_screen_scale_factor, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, g_render_mode_tables, show_axes
             )
 
         # Add the following code in the main function or appropriate GUI rendering section

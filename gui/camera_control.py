@@ -12,7 +12,7 @@ def camera_control_ui(g_camera, g_show_camera_control):
             changed, g_camera.use_free_rotation = imgui.checkbox(
                 "Use Free Rotation", g_camera.use_free_rotation
                 )
-
+            
             changed, g_camera.use_custom_rotation_center = imgui.checkbox(
                 "Use Custom Rotation Center", g_camera.use_custom_rotation_center
                 )
@@ -21,54 +21,69 @@ def camera_control_ui(g_camera, g_show_camera_control):
                 changed, g_camera.rotation_center[1] = imgui.input_float("Rotation Center Y", g_camera.rotation_center[1])
                 changed, g_camera.rotation_center[2] = imgui.input_float("Rotation Center Z", g_camera.rotation_center[2])
 
-            changed, g_camera.fovy = imgui.slider_float(
-                "fov", g_camera.fovy, 0.001, np.pi - 0.001, "fov = %.3f"
+            # 添加正射视角勾选框
+            changed, g_camera.use_orthographic = imgui.checkbox(
+                "Use Orthographic Projection", g_camera.use_orthographic
             )
-            imgui.same_line()
-            if imgui.button(label="Reset fov"):
-                g_camera.fovy = np.pi / 2
-                changed = True
             if changed:
                 g_camera.is_intrin_dirty = True
 
-            changed, g_camera.target_dist = imgui.slider_float(
+            if not g_camera.use_orthographic:
+                changed, g_camera.fovy = imgui.slider_float(
+                    "fov", g_camera.fovy, 0.001, np.pi - 0.001, "fov = %.3f"
+                )
+                imgui.same_line()
+                if imgui.button(label="Reset fov"):
+                    g_camera.fovy = np.pi / 2
+                    changed = True
+                if changed:
+                    g_camera.is_intrin_dirty = True
+
+                changed, g_camera.target_dist = imgui.slider_float(
                     "t", g_camera.target_dist, 1., 10., "target dist = %.3f"
                 )
-            imgui.same_line()
-            if imgui.button(label="Reset t"):
-                g_camera.target_dist = 5.0
-                changed = True  # 确保重置按钮也能触发更新
-            if changed:
-                g_camera.update_target_distance()
+                imgui.same_line()
+                if imgui.button(label="Reset t"):
+                    g_camera.target_dist = 5.0
+                    changed = True  # 确保重置按钮也能触发更新
+                if changed:
+                    g_camera.update_target_distance()
 
-            changed, g_camera.sensitivities['rot'] = imgui.slider_float(
+                changed, g_camera.sensitivities['rot'] = imgui.slider_float(
                     "r", g_camera.sensitivities['rot'], 0.002, 0.1, "rotate speed = %.3f"
                 )
-            imgui.same_line()
-            if imgui.button(label="Reset r"):
-                g_camera.sensitivities['rot'] = 0.02
+                imgui.same_line()
+                if imgui.button(label="Reset r"):
+                    g_camera.sensitivities['rot'] = 0.02
 
-            changed, g_camera.sensitivities['trans'] = imgui.slider_float(
+                changed, g_camera.sensitivities['trans'] = imgui.slider_float(
                     "m", g_camera.sensitivities['trans'], 0.001, 0.03, "move speed = %.3f"
                 )
-            imgui.same_line()
-            if imgui.button(label="Reset m"):
-                g_camera.sensitivities['trans'] = 0.01
+                imgui.same_line()
+                if imgui.button(label="Reset m"):
+                    g_camera.sensitivities['trans'] = 0.01
 
-            changed, g_camera.sensitivities['zoom'] = imgui.slider_float(
+                changed, g_camera.sensitivities['zoom'] = imgui.slider_float(
                     "z", g_camera.sensitivities['zoom'], 0.001, 1.0, "zoom speed = %.3f"
                 )
-            imgui.same_line()
-            if imgui.button(label="Reset z"):
-                g_camera.sensitivities['zoom'] = 0.08
+                imgui.same_line()
+                if imgui.button(label="Reset z"):
+                    g_camera.sensitivities['zoom'] = 0.08
 
-            changed, g_camera.sensitivities['roll'] = imgui.slider_float(
+                changed, g_camera.sensitivities['roll'] = imgui.slider_float(
                     "ro", g_camera.sensitivities['roll'], 0.003, 0.1, "roll speed = %.3f"
                 )
-            imgui.same_line()
-            if imgui.button(label="Reset ro"):
-                g_camera.sensitivities['roll'] = 0.03    
+                imgui.same_line()
+                if imgui.button(label="Reset ro"):
+                    g_camera.sensitivities['roll'] = 0.03    
 
+            # 添加正射视角缩放因子滑动条
+            if g_camera.use_orthographic:
+                changed, g_camera.ortho_scale = imgui.slider_float(
+                    "Ortho Scale", g_camera.ortho_scale, 1.0, 100.0, "ortho scale = %.3f"
+                )
+                if changed:
+                    g_camera.is_intrin_dirty = True
             
             imgui.pop_item_width()  # 恢复滑动条默认宽度
 

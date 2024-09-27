@@ -6,7 +6,7 @@ import OpenGL.GL as gl
 import imageio
 import numpy as np
 
-def gs_elements_control_ui(window, g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, g_render_mode_tables, show_axes):
+def gs_elements_control_ui(window, g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_screen_scale_factor, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, g_render_mode_tables, show_axes):
     changed = False
 
     if imgui.begin("Control", True):
@@ -91,17 +91,29 @@ def gs_elements_control_ui(window, g_renderer, gaussians, g_camera, dc_scale_fac
             # 当任何一个颜色滑动条的值改变时，更新渲染器中的颜色
             g_renderer.update_color_factor(g_rgb_factor)
 
-        # scale modifier
+        # Gaussian Scale Modifier
         changed_scale, g_scale_modifier = imgui.slider_float(
-            "Scale", g_scale_modifier, 0.1, 10, "Scale Modifier = %.2f"
+            "Gaussian Scale", g_scale_modifier, 0.0, 10, "Gaussian Scale = %.2f"
             )
         imgui.same_line()
-        if imgui.button(label="Reset scale"):
+        if imgui.button(label="Reset Gaussian Scale"):
             g_scale_modifier = 1.
             changed_scale = True
 
         if changed_scale:
             g_renderer.set_scale_modifier(g_scale_modifier)
+
+        # Screen Display Scale Factor
+        changed_screen_scale, g_screen_scale_factor = imgui.slider_float(
+            "Screen Display Scale", g_screen_scale_factor, 0.0, 10, "Screen Display Scale = %.2f"
+            )
+        imgui.same_line()
+        if imgui.button(label="Reset Screen Display Scale"):
+            g_screen_scale_factor = 1.
+            changed_screen_scale = True
+
+        if changed_screen_scale:
+            g_renderer.set_screen_scale_factor(g_screen_scale_factor)
 
         # 在ImGui的控制面板中添加旋转控制的滑动条
         changed_x, g_rot_modifier[0] = imgui.slider_float(
@@ -198,4 +210,4 @@ def gs_elements_control_ui(window, g_renderer, gaussians, g_camera, dc_scale_fac
             imgui.pop_item_width()  # 恢复滑动条默认宽度
         imgui.end()
 
-    return g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, changed, show_axes
+    return g_renderer, gaussians, g_camera, dc_scale_factor, extra_scale_factor, g_rgb_factor, g_rot_modifier, g_light_rotation, g_scale_modifier, g_screen_scale_factor, g_auto_sort, g_renderer_idx, g_renderer_list, g_render_mode, changed, show_axes

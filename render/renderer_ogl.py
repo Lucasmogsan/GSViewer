@@ -269,7 +269,10 @@ class OpenGLRenderer(GaussianRenderBase):
         return
    
     def set_scale_modifier(self, modifier):
-        util.set_uniform_1f(self.program, modifier, "scale_modifier")
+        util.set_uniform_1f(self.program, modifier, "gaussian_scale_factor")
+    
+    def set_screen_scale_factor(self, factor):
+        util.set_uniform_1f(self.program, factor, "screen_display_scale_factor")
 
     def set_render_mod(self, mod: int):
         util.set_uniform_1int(self.program, mod, "render_mod")
@@ -287,6 +290,7 @@ class OpenGLRenderer(GaussianRenderBase):
         proj_mat = self.camera.get_project_matrix()
         util.set_uniform_mat4(self.program, proj_mat, "projection_matrix")
         util.set_uniform_v3(self.program, self.camera.get_htanfovxy_focal(), "hfovxy_focal")
+        self.axis_needs_update = True
 
     # 包围盒
     # Set the center point coordinates

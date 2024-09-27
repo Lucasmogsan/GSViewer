@@ -42,6 +42,8 @@ class Camera:
         self.rotation_center = np.array([0.0, 0.0, 0.0], dtype=np.float32)  # 添加旋转中心属性
         self.use_custom_rotation_center = False  # 添加是否使用自定义旋转中心的标志
 
+        self.use_orthographic = False  # 添加正射视角属性
+        self.ortho_scale = 5.0  # 添加正射视角缩放因子
 
     def _global_rot_mat(self):
         x = np.array([1, 0, 0])
@@ -74,12 +76,20 @@ class Camera:
         return view_matrix
 
     def get_project_matrix(self):
-        project_mat = glm.perspective(
-            self.fovy,
-            self.w / self.h,
-            self.znear,
-            self.zfar
-        )
+        if self.use_orthographic:
+            aspect_ratio = self.w / self.h
+            project_mat = glm.ortho(
+                -self.ortho_scale * aspect_ratio, self.ortho_scale * aspect_ratio,
+                -self.ortho_scale, self.ortho_scale,
+                self.znear, self.zfar
+            )
+        else:
+            project_mat = glm.perspective(
+                self.fovy,
+                self.w / self.h,
+                self.znear,
+                self.zfar
+            )
         return np.array(project_mat, dtype=np.float32)
 
     def get_rotation_matrix(self):
@@ -153,15 +163,20 @@ class Camera:
                 self.is_pose_dirty = True
 
     def process_wheel(self, dx, dy):
-        front = self.target - self.position
-        front = front / np.linalg.norm(front)
-        if self.use_custom_rotation_center:
-            self.position += front * dy * self.sensitivities['zoom']
-            self.rotation_center += front * dy * self.sensitivities['zoom']
+        if self.use_orthographic:
+            self.ortho_scale -= dy * self.sensitivities['zoom']
+            self.ortho_scale = max(1.0, self.ortho_scale)  # 确保缩放因子不小于1.0
+            self.is_intrin_dirty = True
         else:
-            self.position += front * dy * self.sensitivities['zoom']
-            self.target += front * dy * self.sensitivities['zoom']
-        self.is_pose_dirty = True
+            front = self.target - self.position
+            front = front / np.linalg.norm(front)
+            if self.use_custom_rotation_center:
+                self.position += front * dy * self.sensitivities['zoom']
+                self.rotation_center += front * dy * self.sensitivities['zoom']
+            else:
+                self.position += front * dy * self.sensitivities['zoom']
+                self.target += front * dy * self.sensitivities['zoom']
+            self.is_pose_dirty = True
 
     def get_htanfovxy_focal(self):
         htany = np.tan(self.fovy / 2)

@@ -49,7 +49,8 @@ uniform mat4 projection_matrix;
 uniform vec3 hfovxy_focal;
 uniform vec3 cam_pos;
 uniform int sh_dim;
-uniform float scale_modifier;
+uniform float gaussian_scale_factor; // 高斯核的缩放因子，用于调整高斯核的大小，3D空间中的物理尺寸
+uniform float screen_display_scale_factor; // 高斯元在屏幕上的显示大小，用于调整高斯元在屏幕上的显示大小，屏幕上的视觉尺寸
 uniform float dc_factor; // 更新DC特征的调整系数并应用所有调整
 uniform float extra_factor; // 更新除DC特征外的调整系数并应用所有调整
 uniform vec3 color_scale_factors; //调整颜色因子
@@ -219,7 +220,8 @@ void main()
 	vec3 g_scale = get_vec3(start + SCALE_IDX);
 	float g_opacity = g_data[start + OPACITY_IDX];
 
-    mat3 cov3d = computeCov3D(g_scale * scale_modifier, quatMultiply(g_rot, rot_modifier));
+	// 计算3D协方差矩阵, 使用gaussian_scale_factor进行缩放是针对高斯核的缩放
+    mat3 cov3d = computeCov3D(g_scale * gaussian_scale_factor, quatMultiply(g_rot, rot_modifier));
     vec2 wh = 2 * hfovxy_focal.xy * hfovxy_focal.z;
     vec3 cov2d = computeCov2D(g_pos_view, 
                               hfovxy_focal.z, 
@@ -239,7 +241,7 @@ void main()
     
     vec2 quadwh_scr = vec2(3.f * sqrt(cov2d.x), 3.f * sqrt(cov2d.z));  // screen space half quad height and width
     vec2 quadwh_ndc = quadwh_scr / wh * 2;  // in ndc space
-    g_pos_screen.xy = g_pos_screen.xy + position * quadwh_ndc;
+    g_pos_screen.xy = g_pos_screen.xy + position * quadwh_ndc * screen_display_scale_factor; // 使用screen_display_scale_factor是在计算高斯元在屏幕上的显示大小时使用的
     coordxy = position * quadwh_scr;
     gl_Position = g_pos_screen;
     
