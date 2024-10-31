@@ -11,7 +11,7 @@
   },
   {
    "optionDest": "onefile",
-   "value": true
+   "value": false
   },
   {
    "optionDest": "console",
@@ -68,6 +68,30 @@
   {
    "optionDest": "binaries",
    "value": "D:/Anaconda3/envs/pytorch/Lib/site-packages/glfw/glfw3.dll;."
+  },
+  {
+   "optionDest": "datas",
+   "value": "D:/small_tools_python/GSViewer/gui;gui/"
+  },
+  {
+   "optionDest": "datas",
+   "value": "D:/small_tools_python/GSViewer/render;render/"
+  },
+  {
+   "optionDest": "datas",
+   "value": "D:/small_tools_python/GSViewer/shaders;shaders/"
+  },
+  {
+   "optionDest": "datas",
+   "value": "D:/small_tools_python/GSViewer/tools;tools/"
+  },
+  {
+   "optionDest": "datas",
+   "value": "D:/small_tools_python/GSViewer/tools/gsconverter;gsconverter/"
+  },
+  {
+   "optionDest": "datas",
+   "value": "D:/small_tools_python/GSViewer/tools/gsconverter/utils;utils/"
   }
  ],
  "nonPyinstallerOptions": {
