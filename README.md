@@ -36,6 +36,12 @@ This is a simple Gaussian Splatting Viewer built with PyOpenGL / CUDARasterizer.
 
 ## Usage
 
+Create a conda environment with Python 3.9:
+```
+conda create -n gsviewer python=3.9
+conda activate gsviewer
+```
+
 Install the dependencies:
 ```
 pip install -r requirements.txt
@@ -81,6 +87,38 @@ The rendering speed of is comparable to the official CUDA renderer. If you're ex
 - The `cuda` backend currently does not support other visualizations.
 
 - Based on the flip test between the two backends, the unofficial implementation seems producing slightly different results compared with the official cuda version.
+
+
+## Packaging
+
+Use `pipenv` to manage and package the project's dependencies:
+
+1. Install `pipenv`:
+   ```
+   pip install pipenv 
+   ```
+
+2. Install dependencies and activate the virtual environment using the existing `Pipfile`:
+   ```
+   pipenv install
+   pipenv shell
+   ```
+
+3. Package the application:
+   
+   - **Using `auto-py-to-exe`:**
+     ```bash
+     auto-py-to-exe
+     ```
+     In the auto-py-to-exe GUI, import Config from JSON file, and click convert button. JSON file is `AutoPyToExeConfig.json`.
+
+   - **Using `pyinstaller`:**
+     ```bash
+     pyinstaller --noconfirm --onefile --windowed --icon "D:\small_tools_python\GSViewer\EXElogo.ico" --name "GSViewer" --clean --log-level "INFO" --add-data "D:\small_tools_python\GSViewer;GSViewer/" --add-binary "D:\Anaconda3\envs\pytorch\Lib\site-packages\glfw\glfw3.dll;." --add-data "D:\small_tools_python\GSViewer\gui;gui/" --add-data "D:\small_tools_python\GSViewer\render;render/" --add-data "D:\small_tools_python\GSViewer\shaders;shaders/" --add-data "D:\small_tools_python\GSViewer\tools;tools/" --add-data "D:\small_tools_python\GSViewer\tools\gsconverter;gsconverter/" --add-data "D:\small_tools_python\GSViewer\tools\gsconverter\utils;utils/"  "D:\small_tools_python\GSViewer\main.py"
+     ```
+
+4. Finally, you can find the executable file in the `output` folder.
+
 
 ## TODO
 - Add orthogonal projection

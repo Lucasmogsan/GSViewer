@@ -2,7 +2,6 @@ import numpy as np
 from plyfile import PlyElement, PlyData
 from dataclasses import dataclass, field
 import scipy as sp
-import open3d as o3d
 import util
 import argparse
 from tools.gsconverter.main import gsconverter
@@ -401,16 +400,16 @@ def export_ply(gaussian_data, output_path, enable_aabb, enable_obb, cube_min, cu
     bbox_values = tuple(np.concatenate([np.min(filtered_xyz, axis=0), np.max(filtered_xyz, axis=0)]).tolist()) if filtered_xyz.size > 0 else None
 
     # 准备转换参数
-    convertargs = argparse.Namespace(
-        input=gaussian_data.path,  # 使用GaussianData中的路径
-        output=output_path,
-        target_format="3dgs",
-        debug=False,  # 根据需要设置debug模式
-        rgb=False,  # 根据实际情况设置rgb参数
-        bbox=bbox_values,  # 设置计算出的bbox参数
-        density_filter=None,  # 如果需要，设置density_filter参数
-        remove_flyers=None  # 如果需要，设置remove_flyers参数
-    )
+    convertargs = {
+        'input': gaussian_data.path,  # 使用GaussianData中的路径
+        'output': output_path,
+        'target_format': "3dgs",
+        'debug': False,  # 根据需要设置debug模式
+        'rgb': False,  # 根据实际情况设置rgb参数
+        'bbox': bbox_values,  # 设置计算出的bbox参数
+        'density_filter': False, # 如果需要，设置density_filter参数
+        'remove_flyers': False # 如果需要，设置remove_flyers参数
+    }
     try:
         success = gsconverter(convertargs)
         return success

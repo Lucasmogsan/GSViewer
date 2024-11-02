@@ -9,6 +9,7 @@ import tkinter as tk
 import os
 import sys
 import argparse
+import ctypes
 from render.renderer_ogl import OpenGLRenderer, GaussianRenderBase
 from gui.camera_control import camera_control_ui
 from gui.gs_elements_control import gs_elements_control_ui
@@ -140,7 +141,7 @@ def window_resize_callback(window, width, height):
     g_camera.update_resolution(height, width)
     g_renderer.set_render_reso(width, height)
 
-def main():
+def main(args):
     global g_camera, g_renderer, g_renderer_list, g_renderer_idx, g_scale_modifier, g_screen_scale_factor, g_auto_sort, \
         g_show_gs_elements_control, g_show_help_control, g_show_camera_control, \
         g_render_mode, g_render_mode_tables, \
@@ -149,8 +150,16 @@ def main():
         show_axes, export_path, export_status
         
     imgui.create_context()
+    # 如果命令行参数中包含--hidpi，则启用HiDPI缩放
     if args.hidpi:
         imgui.get_io().font_global_scale = 1.5
+    # # 自动判断是否进行1.5倍处理
+    # user32 = ctypes.windll.user32
+    # user32.SetProcessDPIAware()
+    # screen_width, screen_height = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+    # if screen_width > 1920 or screen_height > 1080:  # 假设高于1080p的分辨率需要缩放
+    #     imgui.get_io().font_global_scale = 1.5
+
     window = impl_glfw_init()
     impl = GlfwRenderer(window)
     root = tk.Tk()  # used for file dialog
@@ -237,9 +246,16 @@ def main():
     glfw.terminate()
 
 if __name__ == "__main__":
-    global args
-    parser = argparse.ArgumentParser(description="3DGS viewer with optional HiDPI support.")
-    parser.add_argument("--hidpi", action="store_true", help="Enable HiDPI scaling for the interface.")
-    args = parser.parse_args()
+    # 保存原始的 sys.stderr
+    original_stderr = sys.stderr
 
-    main()
+    try:
+        parser = argparse.ArgumentParser(description="3DGS viewer with optional HiDPI support.")
+        parser.add_argument("--hidpi", action="store_true", help="Enable HiDPI scaling for the interface.")
+        args = parser.parse_args()
+
+        main(args)
+    except Exception as e:
+        # 恢复 sys.stderr 以确保错误信息可以被正确打印
+        sys.stderr = original_stderr
+        print(f"An error occurred: {e}")

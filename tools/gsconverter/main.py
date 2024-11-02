@@ -21,7 +21,13 @@ from .utils.base_converter import BaseConverter
 
 __version__ = '0.1'
 
+class Args:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
 def gsconverter(args):
+    args = Args(**args)  # 将字典转换为对象
+
     print(f"3D Gaussian Splatting Converter: {__version__}")
 
     config.DEBUG = args.debug

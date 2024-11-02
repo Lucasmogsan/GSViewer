@@ -5,3 +5,10 @@ PyOpenGL
 numpy
 imageio
 plyfile
+pandas
+argparse
+scipy
+scikit-learn
+pyinstaller
+auto-py-to-exe
+

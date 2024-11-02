@@ -2,7 +2,6 @@ from OpenGL import GL as gl
 import util
 import util_gau
 import numpy as np
-import open3d as o3d
 import ctypes
 
 try:
