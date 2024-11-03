@@ -102,10 +102,11 @@ Use `pipenv` to manage and package the project's dependencies:
    
 2. Install dependencies and activate the virtual environment using the existing `Pipfile`:
    ```
+   pipenv --python 3.9
    pipenv install
    pipenv shell
    ```
-
+   
 3. Package the application:
    
    - **Using `auto-py-to-exe`:**
