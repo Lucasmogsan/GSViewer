@@ -95,9 +95,11 @@ Use `pipenv` to manage and package the project's dependencies:
 
 1. Install `pipenv`:
    ```
-   pip install pipenv 
+   pip install pipenv
+   pip install pyinstaller
+   pip install auto-py-to-exe
    ```
-
+   
 2. Install dependencies and activate the virtual environment using the existing `Pipfile`:
    ```
    pipenv install
