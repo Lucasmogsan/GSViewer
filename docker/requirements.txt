@@ -1,4 +1,4 @@
-cupy==13.3.0
+cupy==11.3.0
 glfw==2.6.5
 imageio==2.21.2
 imgui==2.0.0
@@ -9,4 +9,4 @@ PyGLM==2.7.1
 PyOpenGL==3.1.7
 scikit_learn==1.1.2
 scipy==1.9.1
-torch==1.11.0+cu113
+# torch==1.11.0+cu113

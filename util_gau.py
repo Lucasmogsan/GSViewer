@@ -234,10 +234,12 @@ def naive_gaussian():
 
 # 使用pandas加载ply速度较快
 def load_ply(path):
+    # Insert if statement to check order of the file spherical harmonics (SH) features        
     max_sh_degree = 3
     plydata = PlyData.read(path)
     
     # 创建一个包含所有相关数据的 DataFrame
+    print("HERE 1")
     df = pd.DataFrame({
         'x': np.asarray(plydata.elements[0]["x"]),
         'y': np.asarray(plydata.elements[0]["y"]),
@@ -248,10 +250,12 @@ def load_ply(path):
         'f_dc_2': np.asarray(plydata.elements[0]["f_dc_2"])
     })
     
+    print("HERE 2")
     xyz = df[['x', 'y', 'z']].values
     opacities = df['opacity'].values[..., np.newaxis]
     features_dc = df[['f_dc_0', 'f_dc_1', 'f_dc_2']].values.reshape(-1, 3, 1)
 
+    print("HERE 3")
     properties = plydata.elements[0].properties
     property_names = {p.name: p for p in properties}
 
@@ -273,9 +277,14 @@ def load_ply(path):
         **{name: np.asarray(plydata.elements[0][name]) for name in scale_names},
         **{name: np.asarray(plydata.elements[0][name]) for name in rot_names}
     })
+    
+    print("HERE 4") 
 
     # 处理 features_extra
     features_extra = all_features[extra_f_names].values
+    print(features_extra.shape[1])
+    if features_extra.shape[1] == 0:
+        max_sh_degree = 0
     features_extra = features_extra.reshape((features_extra.shape[0], 3, (max_sh_degree + 1) ** 2 - 1))
     features_extra = np.transpose(features_extra, [0, 2, 1])
 
@@ -283,6 +292,7 @@ def load_ply(path):
     scales = all_features[scale_names].values
     rots = all_features[rot_names].values
 
+    print("HERE 5")
     # pass activate function
     xyz = xyz.astype(np.float32)
     rots = rots / np.linalg.norm(rots, axis=-1, keepdims=True)
@@ -293,6 +303,9 @@ def load_ply(path):
                         features_extra.reshape(len(features_dc), -1)], axis=-1).astype(np.float32)
 
     return GaussianData(xyz, rots, scales, opacities, shs, path=path)
+
+
+
 
 
 # def is_inside_rotated_cube(enable_aabb, enable_obb, point, points_center, cube_min, cube_max, rotation_matrix):

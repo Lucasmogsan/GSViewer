@@ -1,0 +1,45 @@
+services:
+  # Base image containing dependencies.
+  dev:
+    image: thesis_utils_image:dev
+    container_name: thesis_utils_exp1
+    build:
+      context: ..
+      dockerfile: ./docker/Dockerfile
+      args:
+        - UID=${UID:-2000}
+        - GID=${UID:-2000}
+        - USERNAME=${USERNAME:-devuser}
+      #target: dev
+    # Interactive shell
+    stdin_open: true
+    tty: true
+    # Networking and IPC for ROS 2
+    network_mode: host  
+    ipc: host
+    # Needed to display graphical applications
+    environment:
+      # Allows graphical programs in the container.
+      - DISPLAY=${DISPLAY}
+      - QT_QPA_PLATFORM=xcb \
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    runtime: nvidia
+    privileged: true
+    volumes:
+      # Allows graphical programs in the container.
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${XAUTHORITY:-$HOME/.Xauthority}:/root/.Xauthority
+      - /dev/dri:/dev/dri:rw
+
+      - ./..:/home/thesis_utils:rw
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    command: sleep infinity
